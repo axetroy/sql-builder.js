@@ -5,7 +5,17 @@
 ![Node](https://img.shields.io/badge/node-%3E=14-blue.svg?style=flat-square)
 [![npm version](https://badge.fury.io/js/sql-builder.js.svg)](https://badge.fury.io/js/sql-builder.js)
 
-A lightweight and flexible SQL query builder for javascript applications.
+A lightweight and flexible SQL query builder for JavaScript and TypeScript applications with **built-in SQL injection protection**.
+
+## Features
+
+✨ **Safe by Design**: Built-in SQL injection protection with parameterized queries and identifier validation  
+🎯 **Type Safe**: Full TypeScript support with type definitions  
+🚀 **Zero Dependencies**: Lightweight with no external dependencies  
+⚡ **High Performance**: Optimized for speed with cached regex patterns and efficient string building  
+🔧 **Flexible API**: Fluent chainable interface for building complex queries  
+📦 **Dual Module Support**: Works with both ESM and CommonJS  
+🛡️ **Security First**: Operator whitelisting and identifier validation to prevent SQL injection
 
 ## Installation
 
@@ -13,18 +23,835 @@ A lightweight and flexible SQL query builder for javascript applications.
 npm install sql-builder.js --save
 ```
 
-## Usage
+## Quick Start
 
 ```js
 import { SQLBuilder } from "sql-builder.js";
 
-// Initialize the sqlite process
+// Create a new SQLBuilder instance
 const sqlBuilder = new SQLBuilder();
 
-const { sql, params } = sqlBuilder.select("*").from("users").where("age", ">", 18).build();
+// Build a simple SELECT query
+const { sql, params } = sqlBuilder
+  .select("*")
+  .from("users")
+  .where("age", ">", 18)
+  .build();
 
-console.log(sql); // SELECT * FROM `users` WHERE `age` > ?
+console.log(sql);    // SELECT * FROM `users` WHERE `age` > ?
 console.log(params); // [18]
+```
+
+## Table of Contents
+
+- [Basic Usage](#basic-usage)
+  - [SELECT Queries](#select-queries)
+  - [INSERT Queries](#insert-queries)
+  - [UPDATE Queries](#update-queries)
+  - [DELETE Queries](#delete-queries)
+- [Advanced Features](#advanced-features)
+  - [WHERE Conditions](#where-conditions)
+  - [JOIN Operations](#join-operations)
+  - [Sorting and Grouping](#sorting-and-grouping)
+  - [Pagination](#pagination)
+  - [Pagination with Total Count](#pagination-with-total-count)
+- [Security Features](#security-features)
+- [API Reference](#api-reference)
+- [Best Practices](#best-practices)
+
+## Basic Usage
+
+### SELECT Queries
+
+#### Select All Columns
+
+```js
+const { sql, params } = sqlBuilder
+  .select("*")
+  .from("users")
+  .build();
+// SELECT * FROM `users`
+```
+
+#### Select Specific Columns
+
+```js
+const { sql, params } = sqlBuilder
+  .select(["id", "name", "email"])
+  .from("users")
+  .build();
+// SELECT `id`, `name`, `email` FROM `users`
+```
+
+#### Select with Table Alias
+
+```js
+const { sql, params } = sqlBuilder
+  .select(["u.id", "u.name", "u.email"])
+  .from("users u")
+  .build();
+// SELECT `u`.`id`, `u`.`name`, `u`.`email` FROM `users` `u`
+```
+
+#### Select with WHERE Clause
+
+```js
+const { sql, params } = sqlBuilder
+  .select("*")
+  .from("users")
+  .where("status", "active")
+  .where("age", ">=", 18)
+  .build();
+// SELECT * FROM `users` WHERE `status` = ? AND `age` >= ?
+// params: ['active', 18]
+```
+
+### INSERT Queries
+
+```js
+const { sql, params } = sqlBuilder
+  .insert("users", {
+    name: "John Doe",
+    email: "john@example.com",
+    age: 25,
+    status: "active"
+  })
+  .build();
+// INSERT INTO `users` (`name`, `email`, `age`, `status`) VALUES (?, ?, ?, ?)
+// params: ['John Doe', 'john@example.com', 25, 'active']
+```
+
+### UPDATE Queries
+
+```js
+const { sql, params } = sqlBuilder
+  .update("users", {
+    name: "Jane Doe",
+    age: 26
+  })
+  .where("id", 1)
+  .build();
+// UPDATE `users` SET `name` = ?, `age` = ? WHERE `id` = ?
+// params: ['Jane Doe', 26, 1]
+```
+
+**Safety Note**: UPDATE queries require a WHERE clause to prevent accidental data loss.
+
+### DELETE Queries
+
+```js
+const { sql, params } = sqlBuilder
+  .delete("users")
+  .where("status", "inactive")
+  .where("last_login", "<", "2020-01-01")
+  .build();
+// DELETE FROM `users` WHERE `status` = ? AND `last_login` < ?
+// params: ['inactive', '2020-01-01']
+```
+
+**Safety Note**: DELETE queries require a WHERE clause to prevent accidental data loss.
+
+## Advanced Features
+
+### WHERE Conditions
+
+#### Basic WHERE with Operators
+
+```js
+// Equal (default operator)
+sqlBuilder.where("name", "John");
+// WHERE `name` = ?
+
+// Greater than
+sqlBuilder.where("age", ">", 18);
+// WHERE `age` > ?
+
+// Less than or equal
+sqlBuilder.where("score", "<=", 100);
+// WHERE `score` <= ?
+
+// Not equal
+sqlBuilder.where("status", "!=", "deleted");
+// WHERE `status` != ?
+```
+
+#### OR WHERE Conditions
+
+```js
+const { sql, params } = sqlBuilder
+  .select("*")
+  .from("users")
+  .where("status", "active")
+  .orWhere("status", "pending")
+  .build();
+// SELECT * FROM `users` WHERE `status` = ? OR `status` = ?
+// params: ['active', 'pending']
+```
+
+#### WHERE IN / NOT IN
+
+```js
+// WHERE IN
+const { sql, params } = sqlBuilder
+  .select("*")
+  .from("users")
+  .whereIn("role", ["admin", "moderator", "user"])
+  .build();
+// SELECT * FROM `users` WHERE `role` IN (?, ?, ?)
+// params: ['admin', 'moderator', 'user']
+
+// WHERE NOT IN
+const result = sqlBuilder
+  .select("*")
+  .from("users")
+  .whereNotIn("status", ["banned", "deleted"])
+  .build();
+// SELECT * FROM `users` WHERE `status` NOT IN (?, ?)
+// params: ['banned', 'deleted']
+```
+
+#### WHERE LIKE
+
+```js
+// Search with wildcards (default)
+const { sql, params } = sqlBuilder
+  .select("*")
+  .from("users")
+  .whereLike("name", "John")
+  .build();
+// SELECT * FROM `users` WHERE `name` LIKE ?
+// params: ['%John%']
+
+// Search with custom pattern (no auto-wildcards)
+const result = sqlBuilder
+  .select("*")
+  .from("users")
+  .whereLike("email", "%@example.com", false)
+  .build();
+// SELECT * FROM `users` WHERE `email` LIKE ?
+// params: ['%@example.com']
+```
+
+#### WHERE BETWEEN
+
+```js
+const { sql, params } = sqlBuilder
+  .select("*")
+  .from("orders")
+  .whereBetween("created_at", "2024-01-01", "2024-12-31")
+  .build();
+// SELECT * FROM `orders` WHERE `created_at` BETWEEN ? AND ?
+// params: ['2024-01-01', '2024-12-31']
+```
+
+#### WHERE NULL / NOT NULL
+
+```js
+// IS NULL
+const { sql, params } = sqlBuilder
+  .select("*")
+  .from("users")
+  .whereNull("deleted_at")
+  .build();
+// SELECT * FROM `users` WHERE `deleted_at` IS NULL
+
+// IS NOT NULL
+const result = sqlBuilder
+  .select("*")
+  .from("users")
+  .whereNotNull("email")
+  .build();
+// SELECT * FROM `users` WHERE `email` IS NOT NULL
+```
+
+### JOIN Operations
+
+#### INNER JOIN
+
+```js
+const { sql, params } = sqlBuilder
+  .select(["u.id", "u.name", "p.title"])
+  .from("users u")
+  .join("posts p", "u.id", "=", "p.user_id")
+  .build();
+// SELECT `u`.`id`, `u`.`name`, `p`.`title` 
+// FROM `users` `u` 
+// INNER JOIN `posts` `p` ON `u`.`id` = `p`.`user_id`
+```
+
+#### LEFT JOIN
+
+```js
+const { sql, params } = sqlBuilder
+  .select(["u.id", "u.name", "pr.bio"])
+  .from("users u")
+  .leftJoin("profiles pr", "u.id", "=", "pr.user_id")
+  .where("u.status", "active")
+  .build();
+// SELECT `u`.`id`, `u`.`name`, `pr`.`bio` 
+// FROM `users` `u` 
+// LEFT JOIN `profiles` `pr` ON `u`.`id` = `pr`.`user_id` 
+// WHERE `u`.`status` = ?
+```
+
+#### Multiple JOINs
+
+```js
+const { sql, params } = sqlBuilder
+  .select(["u.name", "p.title", "c.content"])
+  .from("users u")
+  .join("posts p", "u.id", "=", "p.user_id")
+  .leftJoin("comments c", "p.id", "=", "c.post_id")
+  .where("u.status", "active")
+  .build();
+// SELECT `u`.`name`, `p`.`title`, `c`.`content` 
+// FROM `users` `u` 
+// INNER JOIN `posts` `p` ON `u`.`id` = `p`.`user_id` 
+// LEFT JOIN `comments` `c` ON `p`.`id` = `c`.`post_id` 
+// WHERE `u`.`status` = ?
+```
+
+### Sorting and Grouping
+
+#### ORDER BY
+
+```js
+// Single column sorting
+const { sql, params } = sqlBuilder
+  .select("*")
+  .from("users")
+  .orderBy("created_at", "DESC")
+  .build();
+// SELECT * FROM `users` ORDER BY `created_at` DESC
+
+// Multiple columns sorting
+const result = sqlBuilder
+  .select("*")
+  .from("users")
+  .orderBy("status", "ASC")
+  .orderBy("created_at", "DESC")
+  .build();
+// SELECT * FROM `users` ORDER BY `status` ASC, `created_at` DESC
+```
+
+#### GROUP BY
+
+```js
+const { sql, params } = sqlBuilder
+  .select(["category", "COUNT(*) AS total"])
+  .from("products")
+  .groupBy("category")
+  .build();
+// SELECT `category`, COUNT(*) AS `total` FROM `products` GROUP BY `category`
+
+// Multiple columns grouping
+const result = sqlBuilder
+  .select(["category", "status", "COUNT(*) AS count"])
+  .from("products")
+  .groupBy(["category", "status"])
+  .build();
+// SELECT `category`, `status`, COUNT(*) AS `count` 
+// FROM `products` 
+// GROUP BY `category`, `status`
+```
+
+### Pagination
+
+#### LIMIT and OFFSET
+
+```js
+const { sql, params } = sqlBuilder
+  .select("*")
+  .from("users")
+  .limit(10)
+  .offset(20)
+  .build();
+// SELECT * FROM `users` LIMIT 10 OFFSET 20
+```
+
+#### Page-based Pagination
+
+```js
+const page = 2;
+const pageSize = 10;
+
+const { sql, params } = sqlBuilder
+  .select("*")
+  .from("users")
+  .limit(pageSize)
+  .offset((page - 1) * pageSize)
+  .build();
+// SELECT * FROM `users` LIMIT 10 OFFSET 10
+```
+
+### Pagination with Total Count
+
+Get paginated results along with the total count in a single query using window functions:
+
+```js
+const page = 1;
+const pageSize = 10;
+
+const { sql, params } = sqlBuilder
+  .select(["id", "name", "email"])
+  .from("users")
+  .where("status", "active")
+  .withTotal("total_count")  // Add total count column
+  .orderBy("created_at", "DESC")
+  .limit(pageSize)
+  .offset((page - 1) * pageSize)
+  .build();
+// SELECT `id`, `name`, `email`, COUNT(*) OVER() AS total_count 
+// FROM `users` 
+// WHERE `status` = ? 
+// ORDER BY `created_at` DESC 
+// LIMIT 10 OFFSET 0
+
+// Each result row will include a 'total_count' field with the total number of records
+// This allows you to calculate total pages without a separate COUNT query
+```
+
+**Benefits of withTotal():**
+- **Single Query**: Get both data and total count in one database round-trip
+- **Performance**: More efficient than running separate SELECT and COUNT queries
+- **Consistency**: Ensures the count matches the filtered dataset
+- **Custom Field Name**: Specify your own field name for the total count
+
+```js
+// Disable total count
+sqlBuilder.withTotal(false);
+
+// Use default field name (__total_count)
+sqlBuilder.withTotal();
+
+// Use custom field name
+sqlBuilder.withTotal("total_rows");
+```
+
+## Security Features
+
+### Built-in SQL Injection Protection
+
+The library provides comprehensive protection against SQL injection:
+
+1. **Parameterized Queries**: All values are passed as parameters, never concatenated into SQL
+2. **Identifier Validation**: Table and column names are validated against a strict pattern
+3. **Operator Whitelisting**: Only safe operators are allowed
+4. **Automatic Escaping**: Identifiers are automatically escaped with backticks
+
+```js
+// ✅ Safe - Values are parameterized
+sqlBuilder.where("username", userInput);
+
+// ✅ Safe - Identifiers are validated and escaped
+sqlBuilder.select(["id", "name"]).from("users");
+
+// ❌ Throws Error - Invalid identifier
+sqlBuilder.select("id; DROP TABLE users--").from("users");
+```
+
+### Identifier Whitelisting
+
+For extra security, you can restrict which table and column names are allowed:
+
+```js
+// Define allowed identifiers
+sqlBuilder.setAllowedIdentifiers([
+  "users",
+  "posts",
+  "comments",
+  "id",
+  "name",
+  "email",
+  "user_id",
+  "post_id",
+  "status"
+]);
+
+// ✅ This works - 'users' and 'name' are in the whitelist
+const { sql } = sqlBuilder
+  .select("name")
+  .from("users")
+  .build();
+
+// ❌ This throws an error - 'password' is not in the whitelist
+sqlBuilder.select("password").from("users");
+// Error: Identifier not in whitelist: password
+```
+
+### Safe Operators
+
+Only these operators are allowed to prevent SQL injection:
+- Comparison: `=`, `!=`, `<>`, `<`, `>`, `<=`, `>=`
+- Pattern: `LIKE`
+- Set: `IN`, `NOT IN`
+- Null: `IS`, `IS NOT`
+- Range: `BETWEEN`
+
+```js
+// ❌ This throws an error - invalid operator
+sqlBuilder.where("id", "'; DROP TABLE users--", 1);
+// Error: Unsupported or dangerous operator: '; DROP TABLE users--
+```
+
+## API Reference
+
+### Constructor
+
+#### `new SQLBuilder()`
+
+Creates a new SQLBuilder instance.
+
+```js
+const sqlBuilder = new SQLBuilder();
+```
+
+### Query Type Methods
+
+#### `select(columns)`
+
+Sets the query type to SELECT and specifies columns to retrieve.
+
+- **Parameters:**
+  - `columns` (string | string[]): Column names to select. Use `"*"` for all columns.
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `insert(table, data)`
+
+Creates an INSERT query.
+
+- **Parameters:**
+  - `table` (string): Table name
+  - `data` (object): Object with column names as keys and values to insert
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `update(table, data)`
+
+Creates an UPDATE query. **Requires a WHERE clause.**
+
+- **Parameters:**
+  - `table` (string): Table name
+  - `data` (object): Object with column names as keys and new values
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `delete([table])`
+
+Creates a DELETE query. **Requires a WHERE clause.**
+
+- **Parameters:**
+  - `table` (string, optional): Table name
+- **Returns:** `SQLBuilder` (chainable)
+
+### Table and Join Methods
+
+#### `from(table)`
+
+Specifies the table for the query.
+
+- **Parameters:**
+  - `table` (string): Table name, optionally with alias (e.g., `"users u"` or `"users AS u"`)
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `join(table, first, operator, second)`
+
+Adds an INNER JOIN clause.
+
+- **Parameters:**
+  - `table` (string): Table to join, optionally with alias
+  - `first` (string): First column in join condition
+  - `operator` (string): Comparison operator
+  - `second` (string): Second column in join condition
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `leftJoin(table, first, operator, second)`
+
+Adds a LEFT JOIN clause.
+
+- **Parameters:** Same as `join()`
+- **Returns:** `SQLBuilder` (chainable)
+
+### WHERE Condition Methods
+
+#### `where(column, [operator], value)`
+
+Adds a WHERE condition with AND.
+
+- **Parameters:**
+  - `column` (string): Column name
+  - `operator` (string, optional): Comparison operator (default: `"="`)
+  - `value` (any): Value to compare
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `orWhere(column, [operator], value)`
+
+Adds a WHERE condition with OR.
+
+- **Parameters:** Same as `where()`
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `whereIn(column, values)`
+
+Adds a WHERE IN condition.
+
+- **Parameters:**
+  - `column` (string): Column name
+  - `values` (array): Array of values
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `whereNotIn(column, values)`
+
+Adds a WHERE NOT IN condition.
+
+- **Parameters:** Same as `whereIn()`
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `whereLike(column, value, [wildcard])`
+
+Adds a WHERE LIKE condition.
+
+- **Parameters:**
+  - `column` (string): Column name
+  - `value` (string): Search value
+  - `wildcard` (boolean, optional): Auto-add `%` wildcards (default: `true`)
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `whereBetween(column, start, end)`
+
+Adds a WHERE BETWEEN condition.
+
+- **Parameters:**
+  - `column` (string): Column name
+  - `start` (any): Start value
+  - `end` (any): End value
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `whereNull(column)`
+
+Adds a WHERE IS NULL condition.
+
+- **Parameters:**
+  - `column` (string): Column name
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `whereNotNull(column)`
+
+Adds a WHERE IS NOT NULL condition.
+
+- **Parameters:**
+  - `column` (string): Column name
+- **Returns:** `SQLBuilder` (chainable)
+
+### Sorting and Grouping Methods
+
+#### `orderBy(column, [direction])`
+
+Adds an ORDER BY clause.
+
+- **Parameters:**
+  - `column` (string): Column name
+  - `direction` (string, optional): Sort direction - `"ASC"` or `"DESC"` (default: `"ASC"`)
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `groupBy(columns)`
+
+Adds a GROUP BY clause.
+
+- **Parameters:**
+  - `columns` (string | string[]): Column name(s) to group by
+- **Returns:** `SQLBuilder` (chainable)
+
+### Pagination Methods
+
+#### `limit(number)`
+
+Sets the maximum number of rows to return.
+
+- **Parameters:**
+  - `number` (number): Maximum number of rows (must be positive integer)
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `offset(number)`
+
+Sets the number of rows to skip.
+
+- **Parameters:**
+  - `number` (number): Number of rows to skip (must be non-negative integer)
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `withTotal([fieldNameOrEnabled])`
+
+Adds a total count column using window functions for pagination.
+
+- **Parameters:**
+  - `fieldNameOrEnabled` (string | boolean, optional): Field name for total count or `false` to disable (default: `"__total_count"`)
+- **Returns:** `SQLBuilder` (chainable)
+
+### Utility Methods
+
+#### `build()`
+
+Builds and returns the final SQL query.
+
+- **Returns:** `{ sql: string, params: any[] }` - Object containing SQL string and parameter array
+- **Throws:** Error if table name is missing or query is invalid
+
+#### `reset()`
+
+Resets the builder to its initial state.
+
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `setAllowedIdentifiers(identifiers)`
+
+Sets a whitelist of allowed table and column names for enhanced security.
+
+- **Parameters:**
+  - `identifiers` (string[]): Array of allowed identifier names
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `toString()`
+
+Returns a formatted SQL string with parameters substituted (for debugging only, not for execution).
+
+- **Returns:** `string` - Formatted SQL string
+
+#### `getParams()`
+
+Returns a copy of the current parameter array.
+
+- **Returns:** `any[]` - Array of query parameters
+
+#### `getQueryType()`
+
+Returns the current query type.
+
+- **Returns:** `string` - Query type (`"SELECT"`, `"INSERT"`, `"UPDATE"`, or `"DELETE"`)
+
+## Best Practices
+
+### 1. Always Use Parameterized Values
+
+✅ **DO:**
+```js
+sqlBuilder.where("username", userInput);
+```
+
+❌ **DON'T:**
+```js
+// Never concatenate user input into SQL
+const sql = `SELECT * FROM users WHERE username = '${userInput}'`;
+```
+
+### 2. Use WHERE Clauses with UPDATE and DELETE
+
+The library requires WHERE clauses for UPDATE and DELETE to prevent accidental data loss:
+
+```js
+// ❌ This will throw an error
+sqlBuilder.update("users", { status: "inactive" }).build();
+// Error: UPDATE query requires WHERE clause
+
+// ✅ This is safe
+sqlBuilder.update("users", { status: "inactive" })
+  .where("last_login", "<", "2020-01-01")
+  .build();
+```
+
+### 3. Reuse the SQLBuilder Instance
+
+You can reset and reuse the same instance:
+
+```js
+const sqlBuilder = new SQLBuilder();
+
+// First query
+const query1 = sqlBuilder.select("*").from("users").build();
+
+// Reset and build second query
+const query2 = sqlBuilder.reset().select("*").from("posts").build();
+```
+
+### 4. Use Identifier Whitelisting for User-Controlled Columns
+
+If users can specify which columns to query, use a whitelist:
+
+```js
+sqlBuilder.setAllowedIdentifiers(["id", "name", "email", "created_at"]);
+
+// Now only these columns can be used
+const userSelectedColumns = ["email", "created_at"]; // from user input
+const { sql } = sqlBuilder
+  .select(userSelectedColumns)
+  .from("users")
+  .build();
+```
+
+### 5. Use withTotal() for Efficient Pagination
+
+Instead of two queries:
+
+```js
+// ❌ Less efficient - two database queries
+const countQuery = sqlBuilder.select("COUNT(*) AS total").from("users").build();
+const dataQuery = sqlBuilder.reset().select("*").from("users").limit(10).build();
+```
+
+Use a single query with `withTotal()`:
+
+```js
+// ✅ More efficient - one database query
+const { sql, params } = sqlBuilder
+  .select("*")
+  .from("users")
+  .withTotal()
+  .limit(10)
+  .build();
+```
+
+### 6. Execute with Your Database Driver
+
+The library builds SQL and parameters - you execute them with your database driver:
+
+```js
+import mysql from "mysql2/promise";
+import { SQLBuilder } from "sql-builder.js";
+
+const connection = await mysql.createConnection({ /* config */ });
+const sqlBuilder = new SQLBuilder();
+
+const { sql, params } = sqlBuilder
+  .select("*")
+  .from("users")
+  .where("status", "active")
+  .build();
+
+const [rows] = await connection.execute(sql, params);
+```
+
+## Performance
+
+The library is optimized for high performance with:
+
+- **Cached Regex Patterns**: Compiled once and reused
+- **Efficient String Building**: Minimal memory allocations
+- **No Dependencies**: Zero overhead from external packages
+
+See [PERFORMANCE.md](PERFORMANCE.md) for detailed benchmarks.
+
+## TypeScript Support
+
+The library includes TypeScript type definitions:
+
+```typescript
+import { SQLBuilder } from "sql-builder.js";
+
+const sqlBuilder = new SQLBuilder();
+
+const result: { sql: string; params: any[] } = sqlBuilder
+  .select(["id", "name"])
+  .from("users")
+  .where("status", "active")
+  .build();
 ```
 
 ## License
