@@ -10,6 +10,14 @@
  */
 class SQLBuilder {
 	/**
+	 * Cached regex patterns for better performance
+	 * @private
+	 * @static
+	 */
+	static #IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_.]*$/;
+	static #COUNT_AS_PATTERN = /^COUNT\(\*\)\s+AS\s+(.+)$/i;
+
+	/**
 	 * @private
 	 */
 	#query = {
@@ -55,8 +63,7 @@ class SQLBuilder {
 	 * const sql = new SQLBuilder();
 	 */
 	constructor() {
-		// 初始化时可以配置默认白名单
-		this.#allowedIdentifiers = new Set();
+		// No need to reinitialize - already initialized above
 	}
 
 	/**
@@ -72,9 +79,9 @@ class SQLBuilder {
 		}
 
 		// 允许字母、数字、下划线、点号（用于 table.column）
-		if (!/^[a-zA-Z_][a-zA-Z0-9_.]*$/.test(identifier)) {
+		if (!SQLBuilder.#IDENTIFIER_PATTERN.test(identifier)) {
 			// 兼容 COUNT(*) AS total 等函数调用的情况
-			const match = /^COUNT\(\*\)\s+AS\s+(.+)$/i.exec(identifier);
+			const match = SQLBuilder.#COUNT_AS_PATTERN.exec(identifier);
 
 			if (match) {
 				const alias = match[1];
@@ -115,9 +122,9 @@ class SQLBuilder {
 		}
 
 		// 基本格式验证
-		if (!/^[a-zA-Z_][a-zA-Z0-9_.]*$/.test(identifier)) {
+		if (!SQLBuilder.#IDENTIFIER_PATTERN.test(identifier)) {
 			// 兼容 COUNT(*) AS total 等函数调用的情况
-			const match = /^COUNT\(\*\)\s+AS\s+(.+)$/i.exec(identifier);
+			const match = SQLBuilder.#COUNT_AS_PATTERN.exec(identifier);
 
 			if (match) {
 				const alias = match[1];
@@ -326,7 +333,11 @@ class SQLBuilder {
 
 		this.#validateIdentifier(column);
 
-		const placeholders = values.map(() => "?").join(", ");
+		// Optimize: build placeholders without array allocation
+		let placeholders = "?";
+		for (let i = 1; i < values.length; i++) {
+			placeholders += ", ?";
+		}
 
 		this.#query.where.push({
 			column: this.#escapeIdentifier(column),
@@ -355,7 +366,12 @@ class SQLBuilder {
 
 		this.#validateIdentifier(column);
 
-		const placeholders = values.map(() => "?").join(", ");
+		// Optimize: build placeholders without array allocation
+		let placeholders = "?";
+		for (let i = 1; i < values.length; i++) {
+			placeholders += ", ?";
+		}
+
 		this.#query.where.push({
 			column: this.#escapeIdentifier(column),
 			operator: "NOT IN",
@@ -816,7 +832,7 @@ class SQLBuilder {
 
 		return {
 			sql: parts.join(" "),
-			params: [...this.#params],
+			params: this.#params,
 		};
 	}
 
@@ -833,7 +849,7 @@ class SQLBuilder {
 
 		return {
 			sql,
-			params: [...this.#params],
+			params: this.#params,
 		};
 	}
 
@@ -861,7 +877,7 @@ class SQLBuilder {
 
 		return {
 			sql: parts.join(" "),
-			params: [...this.#params],
+			params: this.#params,
 		};
 	}
 
@@ -885,7 +901,7 @@ class SQLBuilder {
 
 		return {
 			sql: parts.join(" "),
-			params: [...this.#params],
+			params: this.#params,
 		};
 	}
 
@@ -929,7 +945,7 @@ class SQLBuilder {
 	 * const params = sqlBuilder.getParams();
 	 */
 	getParams() {
-		return [...this.#params];
+		return this.#params.slice();
 	}
 
 	/**
