@@ -671,11 +671,16 @@ class SQLBuilder {
 	 * @param {string} table - 表名
 	 * @param {Object} data - 要插入的数据对象
 	 * @returns {SQLBuilder}
+	 * @throws {Error} 当 data 为空对象时抛出错误
 	 * @example
 	 * sql.insert('users', { name: 'John', age: 25, email: 'john@example.com' });
 	 */
 	insert(table, data) {
 		this.#validateIdentifier(table);
+
+		if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
+			throw new Error('Insert data cannot be empty');
+		}
 
 		// 转义所有列名
 		const escapedData = {};
@@ -696,11 +701,16 @@ class SQLBuilder {
 	 * @param {string} table - 表名
 	 * @param {Object} data - 要更新的数据对象
 	 * @returns {SQLBuilder}
+	 * @throws {Error} 当 data 为空对象时抛出错误
 	 * @example
 	 * sql.update('users', { name: 'Jane', age: 26 }).where('id', 1);
 	 */
 	update(table, data) {
 		this.#validateIdentifier(table);
+
+		if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
+			throw new Error('Update data cannot be empty');
+		}
 
 		// 转义所有列名
 		const escapedData = {};
@@ -852,7 +862,7 @@ class SQLBuilder {
 	 */
 	#buildInsert() {
 		const columns = Object.keys(this.#query.values);
-		const placeholders = columns.map(() => "?").join(", ");
+		const placeholders = this.#buildPlaceholders(columns.length);
 
 		const sql = `INSERT INTO ${this.#query.table} (${columns.join(", ")}) VALUES (${placeholders})`;
 
