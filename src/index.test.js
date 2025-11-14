@@ -40,6 +40,18 @@ describe("SQLBuilder", () => {
 			assert.strictEqual(afterReset.length, 0);
 			assert.strictEqual(sqlBuilder.getQueryType(), "SELECT");
 		});
+
+		it("应该重置 withTotal 字段", () => {
+			sqlBuilder.select("id").from("users").withTotal("my_count");
+
+			const { sql: beforeReset } = sqlBuilder.build();
+			assert.ok(beforeReset.includes("COUNT(*) OVER()"));
+
+			sqlBuilder.reset().select("id").from("users");
+
+			const { sql: afterReset } = sqlBuilder.build();
+			assert.ok(!afterReset.includes("COUNT(*) OVER()"));
+		});
 	});
 
 	describe("setAllowedIdentifiers() 方法", () => {
