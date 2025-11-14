@@ -217,7 +217,6 @@ class SQLBuilder {
 	 * @param {string|string[]} columns - 要查询的列名，默认为 ['*']
 	 * @returns {SQLBuilder}
 	 * @example
-	 * sql.select('id', 'name');
 	 * sql.select(['id', 'name', 'email']);
 	 * sql.select('*'); // 查询所有列
 	 * sql.select(['u.id', 'u.name']); // 使用表别名
