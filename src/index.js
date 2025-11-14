@@ -153,6 +153,23 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 构建占位符字符串
+	 * @private
+	 * @param {number} count - 占位符数量
+	 * @returns {string} 占位符字符串，例如 "?, ?, ?"
+	 */
+	#buildPlaceholders(count) {
+		if (count <= 0) return "";
+		if (count === 1) return "?";
+		
+		let placeholders = "?";
+		for (let i = 1; i < count; i++) {
+			placeholders += ", ?";
+		}
+		return placeholders;
+	}
+
+	/**
 	 * 设置标识符白名单
 	 * @param {string[]} identifiers - 允许的标识符列表
 	 * @returns {SQLBuilder}
@@ -189,6 +206,7 @@ class SQLBuilder {
 			offset: null,
 			values: {},
 			set: {},
+			withTotal: undefined,
 		};
 		this.#params = [];
 		return this;
@@ -199,7 +217,6 @@ class SQLBuilder {
 	 * @param {string|string[]} columns - 要查询的列名，默认为 ['*']
 	 * @returns {SQLBuilder}
 	 * @example
-	 * sql.select('id', 'name');
 	 * sql.select(['id', 'name', 'email']);
 	 * sql.select('*'); // 查询所有列
 	 * sql.select(['u.id', 'u.name']); // 使用表别名
@@ -207,18 +224,14 @@ class SQLBuilder {
 	select(columns = ["*"]) {
 		this.#query.type = "SELECT";
 
-		if (columns === "*") {
-			this.#query.columns = ["*"];
-		} else {
-			const columnArray = Array.isArray(columns) ? columns : [columns];
-			this.#query.columns = columnArray.map((col) => {
-				if (col !== "*") {
-					this.#validateIdentifier(col);
-					return this.#escapeIdentifier(col);
-				}
-				return col;
-			});
-		}
+		const columnArray = Array.isArray(columns) ? columns : [columns];
+		this.#query.columns = columnArray.map((col) => {
+			if (col !== "*") {
+				this.#validateIdentifier(col);
+				return this.#escapeIdentifier(col);
+			}
+			return col;
+		});
 
 		return this;
 	}
@@ -333,16 +346,10 @@ class SQLBuilder {
 
 		this.#validateIdentifier(column);
 
-		// Optimize: build placeholders without array allocation
-		let placeholders = "?";
-		for (let i = 1; i < values.length; i++) {
-			placeholders += ", ?";
-		}
-
 		this.#query.where.push({
 			column: this.#escapeIdentifier(column),
 			operator: "IN",
-			value: `(${placeholders})`,
+			value: `(${this.#buildPlaceholders(values.length)})`,
 			connector: "AND",
 		});
 		this.#params.push(...values);
@@ -366,16 +373,10 @@ class SQLBuilder {
 
 		this.#validateIdentifier(column);
 
-		// Optimize: build placeholders without array allocation
-		let placeholders = "?";
-		for (let i = 1; i < values.length; i++) {
-			placeholders += ", ?";
-		}
-
 		this.#query.where.push({
 			column: this.#escapeIdentifier(column),
 			operator: "NOT IN",
-			value: `(${placeholders})`,
+			value: `(${this.#buildPlaceholders(values.length)})`,
 			connector: "AND",
 		});
 		this.#params.push(...values);
@@ -629,7 +630,7 @@ class SQLBuilder {
 	/**
 	 * 启用总数统计（用于分页查询）
 	 * 在 SELECT 查询中添加 COUNT(*) OVER() 窗口函数来获取总数
-	 * @param {boolean} [enabled=true] - 是否启用总数统计
+	 * @param {string|boolean} [fieldNameOrEnabled="__total_count"] - 字段名或是否启用（false 表示禁用）
 	 * @returns {SQLBuilder}
 	 * @example
 	 * // 基本用法
@@ -651,9 +652,16 @@ class SQLBuilder {
 	 *   .limit(pageSize)
 	 *   .offset((page - 1) * pageSize)
 	 *   .build();
+	 *
+	 * // 禁用总数统计
+	 * sqlBuilder.withTotal(false);
 	 */
-	withTotal(fieldName = "__total_count") {
-		this.#query.withTotal = fieldName;
+	withTotal(fieldNameOrEnabled = "__total_count") {
+		if (fieldNameOrEnabled === false) {
+			this.#query.withTotal = undefined;
+		} else {
+			this.#query.withTotal = fieldNameOrEnabled === true ? "__total_count" : fieldNameOrEnabled;
+		}
 		return this;
 	}
 
@@ -662,11 +670,16 @@ class SQLBuilder {
 	 * @param {string} table - 表名
 	 * @param {Object} data - 要插入的数据对象
 	 * @returns {SQLBuilder}
+	 * @throws {Error} 当 data 为空对象时抛出错误
 	 * @example
 	 * sql.insert('users', { name: 'John', age: 25, email: 'john@example.com' });
 	 */
 	insert(table, data) {
 		this.#validateIdentifier(table);
+
+		if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
+			throw new Error('Insert data cannot be empty');
+		}
 
 		// 转义所有列名
 		const escapedData = {};
@@ -687,11 +700,16 @@ class SQLBuilder {
 	 * @param {string} table - 表名
 	 * @param {Object} data - 要更新的数据对象
 	 * @returns {SQLBuilder}
+	 * @throws {Error} 当 data 为空对象时抛出错误
 	 * @example
 	 * sql.update('users', { name: 'Jane', age: 26 }).where('id', 1);
 	 */
 	update(table, data) {
 		this.#validateIdentifier(table);
+
+		if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
+			throw new Error('Update data cannot be empty');
+		}
 
 		// 转义所有列名
 		const escapedData = {};
@@ -843,7 +861,7 @@ class SQLBuilder {
 	 */
 	#buildInsert() {
 		const columns = Object.keys(this.#query.values);
-		const placeholders = columns.map(() => "?").join(", ");
+		const placeholders = this.#buildPlaceholders(columns.length);
 
 		const sql = `INSERT INTO ${this.#query.table} (${columns.join(", ")}) VALUES (${placeholders})`;
 

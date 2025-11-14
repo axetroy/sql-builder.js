@@ -50,6 +50,6 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/axetroy/ssql-builder.js.git"
+        "url": "git+https://github.com/axetroy/sql-builder.js.git"
     }
 }
