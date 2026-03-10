@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
-import SQLBuilder from "./index.js";
+import SQLBuilder, { Transaction } from "./index.js";
 
 /**
  * SQLBuilder 单元测试
@@ -599,6 +599,122 @@ describe("SQLBuilder", () => {
 				"SELECT `id`, `name`, `email`, COUNT(*) OVER() AS __total_count FROM `users` WHERE `status` = ? AND `name` LIKE ? ORDER BY `id` ASC LIMIT 10 OFFSET 0"
 			);
 			assert.deepStrictEqual(params, ["active", "%john%"]);
+		});
+	});
+
+	describe("Transaction 类", () => {
+		it("应该成功创建 Transaction 实例", () => {
+			assert.doesNotThrow(() => {
+				new Transaction();
+			});
+		});
+
+		it("应该构建包含单个 INSERT 的事务", () => {
+			const { sql, params } = new Transaction()
+				.add(new SQLBuilder().insert("users", { name: "John", email: "john@example.com" }))
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"BEGIN;\nINSERT INTO `users` (`name`, `email`) VALUES (?, ?);\nCOMMIT;"
+			);
+			assert.deepStrictEqual(params, ["John", "john@example.com"]);
+		});
+
+		it("应该构建包含多个查询的事务", () => {
+			const { sql, params } = new Transaction()
+				.add(new SQLBuilder().insert("users", { name: "John" }))
+				.add(new SQLBuilder().update("accounts", { balance: 100 }).where("id", 1))
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"BEGIN;\nINSERT INTO `users` (`name`) VALUES (?);\nUPDATE `accounts` SET `balance` = ? WHERE `id` = ?;\nCOMMIT;"
+			);
+			assert.deepStrictEqual(params, ["John", 100, 1]);
+		});
+
+		it("应该支持 SAVEPOINT", () => {
+			const { sql, params } = new Transaction()
+				.add(new SQLBuilder().insert("users", { name: "John" }))
+				.savepoint("sp1")
+				.add(new SQLBuilder().update("accounts", { balance: 100 }).where("id", 1))
+				.releaseSavepoint("sp1")
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"BEGIN;\nINSERT INTO `users` (`name`) VALUES (?);\nSAVEPOINT sp1;\nUPDATE `accounts` SET `balance` = ? WHERE `id` = ?;\nRELEASE SAVEPOINT sp1;\nCOMMIT;"
+			);
+			assert.deepStrictEqual(params, ["John", 100, 1]);
+		});
+
+		it("应该支持 ROLLBACK TO SAVEPOINT", () => {
+			const { sql, params } = new Transaction()
+				.add(new SQLBuilder().insert("users", { name: "John" }))
+				.savepoint("sp1")
+				.add(new SQLBuilder().update("accounts", { balance: 100 }).where("id", 1))
+				.rollbackTo("sp1")
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"BEGIN;\nINSERT INTO `users` (`name`) VALUES (?);\nSAVEPOINT sp1;\nUPDATE `accounts` SET `balance` = ? WHERE `id` = ?;\nROLLBACK TO SAVEPOINT sp1;\nCOMMIT;"
+			);
+			assert.deepStrictEqual(params, ["John", 100, 1]);
+		});
+
+		it("应该支持空事务", () => {
+			const { sql, params } = new Transaction().build();
+
+			assert.strictEqual(sql, "BEGIN;\nCOMMIT;");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该验证 add() 参数必须是 SQLBuilder 实例", () => {
+			assert.throws(() => {
+				new Transaction().add("not a builder");
+			}, /Transaction\.add\(\) requires a SQLBuilder instance/);
+
+			assert.throws(() => {
+				new Transaction().add({ build: () => {} });
+			}, /Transaction\.add\(\) requires a SQLBuilder instance/);
+		});
+
+		it("应该验证 savepoint 名称合法性", () => {
+			assert.throws(() => {
+				new Transaction().savepoint("invalid name");
+			}, /Invalid savepoint name/);
+
+			assert.throws(() => {
+				new Transaction().savepoint("123invalid");
+			}, /Invalid savepoint name/);
+
+			assert.throws(() => {
+				new Transaction().savepoint("");
+			}, /Invalid savepoint name/);
+		});
+
+		it("应该验证 releaseSavepoint 名称合法性", () => {
+			assert.throws(() => {
+				new Transaction().releaseSavepoint("bad name!");
+			}, /Invalid savepoint name/);
+		});
+
+		it("应该验证 rollbackTo 名称合法性", () => {
+			assert.throws(() => {
+				new Transaction().rollbackTo("bad-name");
+			}, /Invalid savepoint name/);
+		});
+
+		it("应该合并多个查询的参数", () => {
+			const { params } = new Transaction()
+				.add(new SQLBuilder().insert("orders", { user_id: 1, total: 99.99 }))
+				.add(new SQLBuilder().update("inventory", { stock: 10 }).where("product_id", 5))
+				.add(new SQLBuilder().delete("cart").where("user_id", 1))
+				.build();
+
+			assert.deepStrictEqual(params, [1, 99.99, 10, 5, 1]);
 		});
 	});
 });

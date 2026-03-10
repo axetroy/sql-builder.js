@@ -57,6 +57,7 @@ console.log(params); // [18]
   - [排序与分组](#排序与分组)
   - [分页](#分页)
   - [带总数的分页](#带总数的分页)
+  - [事务](#事务)
 - [安全特性](#安全特性)
 - [API 参考](#api-参考)
 - [最佳实践](#最佳实践)
@@ -430,6 +431,41 @@ sqlBuilder.withTotal();
 sqlBuilder.withTotal("total_rows");
 ```
 
+### 事务
+
+使用 `Transaction` 类将多个查询包装在数据库事务中：
+
+```js
+import { Transaction, SQLBuilder } from "sql-builder.js";
+
+const { sql, params } = new Transaction()
+  .add(new SQLBuilder().insert("users", { name: "张三", email: "zhang@example.com" }))
+  .add(new SQLBuilder().update("accounts", { balance: 500 }).where("user_id", 1))
+  .build();
+
+console.log(sql);
+// BEGIN;
+// INSERT INTO `users` (`name`, `email`) VALUES (?, ?);
+// UPDATE `accounts` SET `balance` = ? WHERE `user_id` = ?;
+// COMMIT;
+
+console.log(params); // ["张三", "zhang@example.com", 500, 1]
+```
+
+#### 使用 SAVEPOINT
+
+```js
+const { sql, params } = new Transaction()
+  .add(new SQLBuilder().insert("orders", { user_id: 1, total: 99.99 }))
+  .savepoint("before_inventory")
+  .add(new SQLBuilder().update("inventory", { stock: 10 }).where("product_id", 5))
+  .releaseSavepoint("before_inventory")
+  .build();
+
+// 使用 rollbackTo() 回滚到保存点而不是释放它：
+// transaction.rollbackTo("before_inventory");
+```
+
 ## 安全特性
 
 ### 内置 SQL 注入防护
@@ -728,6 +764,51 @@ const sqlBuilder = new SQLBuilder();
 返回当前查询类型。
 
 - **返回值：** `string` - 查询类型（`"SELECT"`、`"INSERT"`、`"UPDATE"` 或 `"DELETE"`）
+
+### Transaction 类
+
+#### `new Transaction()`
+
+创建一个新的 Transaction 实例。
+
+#### `add(builder)`
+
+向事务中添加一个 `SQLBuilder` 查询。
+
+- **参数：**
+  - `builder`（必须）：`SQLBuilder` 实例
+- **返回值：** `Transaction` 实例（支持链式调用）
+- **抛出：** 当 `builder` 不是 `SQLBuilder` 实例时报错
+
+#### `savepoint(name)`
+
+向事务中添加 `SAVEPOINT` 语句。
+
+- **参数：**
+  - `name`（必须）：保存点名称（只允许字母、数字和下划线，且必须以字母或下划线开头）
+- **返回值：** `Transaction` 实例（支持链式调用）
+
+#### `releaseSavepoint(name)`
+
+向事务中添加 `RELEASE SAVEPOINT` 语句。
+
+- **参数：**
+  - `name`（必须）：保存点名称
+- **返回值：** `Transaction` 实例（支持链式调用）
+
+#### `rollbackTo(name)`
+
+向事务中添加 `ROLLBACK TO SAVEPOINT` 语句。
+
+- **参数：**
+  - `name`（必须）：保存点名称
+- **返回值：** `Transaction` 实例（支持链式调用）
+
+#### `build()`（Transaction）
+
+构建完整的事务 SQL。
+
+- **返回值：** `{ sql: string, params: any[] }` — 完整的事务 SQL（包含 `BEGIN`/`COMMIT`）及所有合并后的参数
 
 ## 最佳实践
 

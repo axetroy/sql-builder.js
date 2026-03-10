@@ -977,5 +977,135 @@ class SQLBuilder {
 	}
 }
 
-export { SQLBuilder };
+/**
+ * SQL 事务构建器
+ * 将多个 SQLBuilder 查询包装在事务中，支持 SAVEPOINT 操作
+ * @class Transaction
+ * @example
+ * const transaction = new Transaction();
+ * const result = transaction
+ *   .add(new SQLBuilder().insert('users', { name: 'John' }))
+ *   .add(new SQLBuilder().update('accounts', { balance: 100 }).where('id', 1))
+ *   .build();
+ * console.log(result.sql);
+ * // BEGIN;
+ * // INSERT INTO `users` (`name`) VALUES (?);
+ * // UPDATE `accounts` SET `balance` = ? WHERE `id` = ?;
+ * // COMMIT;
+ */
+class Transaction {
+	/**
+	 * Regex pattern for savepoint name validation
+	 * @private
+	 * @static
+	 */
+	static #SAVEPOINT_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+	/**
+	 * @private
+	 * @type {Array<{type: string, builder?: SQLBuilder, name?: string}>}
+	 */
+	#statements = [];
+
+	/**
+	 * 验证 SAVEPOINT 名称是否合法
+	 * @private
+	 * @param {string} name - SAVEPOINT 名称
+	 * @throws {Error} 当名称不合法时抛出错误
+	 */
+	#validateSavepointName(name) {
+		if (typeof name !== "string" || !Transaction.#SAVEPOINT_PATTERN.test(name)) {
+			throw new Error(`Invalid savepoint name: ${name}`);
+		}
+	}
+
+	/**
+	 * 添加一个 SQLBuilder 查询到事务中
+	 * @param {SQLBuilder} builder - SQLBuilder 实例
+	 * @returns {Transaction}
+	 * @throws {Error} 当 builder 不是 SQLBuilder 实例时抛出错误
+	 * @example
+	 * transaction.add(new SQLBuilder().insert('users', { name: 'John' }));
+	 */
+	add(builder) {
+		if (!(builder instanceof SQLBuilder)) {
+			throw new Error("Transaction.add() requires a SQLBuilder instance");
+		}
+		this.#statements.push({ type: "query", builder });
+		return this;
+	}
+
+	/**
+	 * 添加 SAVEPOINT 语句
+	 * @param {string} name - SAVEPOINT 名称
+	 * @returns {Transaction}
+	 * @example
+	 * transaction.savepoint('sp1');
+	 */
+	savepoint(name) {
+		this.#validateSavepointName(name);
+		this.#statements.push({ type: "savepoint", name });
+		return this;
+	}
+
+	/**
+	 * 添加 RELEASE SAVEPOINT 语句
+	 * @param {string} name - SAVEPOINT 名称
+	 * @returns {Transaction}
+	 * @example
+	 * transaction.releaseSavepoint('sp1');
+	 */
+	releaseSavepoint(name) {
+		this.#validateSavepointName(name);
+		this.#statements.push({ type: "release_savepoint", name });
+		return this;
+	}
+
+	/**
+	 * 添加 ROLLBACK TO SAVEPOINT 语句
+	 * @param {string} name - SAVEPOINT 名称
+	 * @returns {Transaction}
+	 * @example
+	 * transaction.rollbackTo('sp1');
+	 */
+	rollbackTo(name) {
+		this.#validateSavepointName(name);
+		this.#statements.push({ type: "rollback_to", name });
+		return this;
+	}
+
+	/**
+	 * 构建事务 SQL
+	 * @returns {{sql: string, params: any[]}} 包含完整事务 SQL 和参数的对象
+	 * @example
+	 * const { sql, params } = transaction.build();
+	 */
+	build() {
+		const parts = ["BEGIN"];
+		const params = [];
+
+		for (const stmt of this.#statements) {
+			if (stmt.type === "query") {
+				const result = stmt.builder.build();
+				parts.push(result.sql);
+				params.push(...result.params);
+			} else if (stmt.type === "savepoint") {
+				parts.push(`SAVEPOINT ${stmt.name}`);
+			} else if (stmt.type === "release_savepoint") {
+				parts.push(`RELEASE SAVEPOINT ${stmt.name}`);
+			} else if (stmt.type === "rollback_to") {
+				parts.push(`ROLLBACK TO SAVEPOINT ${stmt.name}`);
+			}
+		}
+
+		parts.push("COMMIT");
+
+		return {
+			sql: parts.join(";\n") + ";",
+			params,
+		};
+	}
+}
+
+export { SQLBuilder, Transaction };
 export default SQLBuilder;
