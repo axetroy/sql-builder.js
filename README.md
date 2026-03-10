@@ -57,6 +57,7 @@ console.log(params); // [18]
   - [Sorting and Grouping](#sorting-and-grouping)
   - [Pagination](#pagination)
   - [Pagination with Total Count](#pagination-with-total-count)
+  - [Transactions](#transactions)
 - [Security Features](#security-features)
 - [API Reference](#api-reference)
 - [Best Practices](#best-practices)
@@ -430,6 +431,41 @@ sqlBuilder.withTotal();
 sqlBuilder.withTotal("total_rows");
 ```
 
+### Transactions
+
+Use the `Transaction` class to wrap multiple queries in a database transaction:
+
+```js
+import { Transaction, SQLBuilder } from "sql-builder.js";
+
+const { sql, params } = new Transaction()
+  .add(new SQLBuilder().insert("users", { name: "John", email: "john@example.com" }))
+  .add(new SQLBuilder().update("accounts", { balance: 500 }).where("user_id", 1))
+  .build();
+
+console.log(sql);
+// BEGIN;
+// INSERT INTO `users` (`name`, `email`) VALUES (?, ?);
+// UPDATE `accounts` SET `balance` = ? WHERE `user_id` = ?;
+// COMMIT;
+
+console.log(params); // ["John", "john@example.com", 500, 1]
+```
+
+#### Using SAVEPOINTs
+
+```js
+const { sql, params } = new Transaction()
+  .add(new SQLBuilder().insert("orders", { user_id: 1, total: 99.99 }))
+  .savepoint("before_inventory")
+  .add(new SQLBuilder().update("inventory", { stock: 10 }).where("product_id", 5))
+  .releaseSavepoint("before_inventory")
+  .build();
+
+// Use rollbackTo() to undo to a savepoint instead of releasing it:
+// transaction.rollbackTo("before_inventory");
+```
+
 ## Security Features
 
 ### Built-in SQL Injection Protection
@@ -728,6 +764,51 @@ Returns a copy of the current parameter array.
 Returns the current query type.
 
 - **Returns:** `string` - Query type (`"SELECT"`, `"INSERT"`, `"UPDATE"`, or `"DELETE"`)
+
+### Transaction Class
+
+#### `new Transaction()`
+
+Creates a new Transaction instance.
+
+#### `add(builder)`
+
+Adds a `SQLBuilder` query to the transaction.
+
+- **Parameters:**
+  - `builder` (required): A `SQLBuilder` instance
+- **Returns:** `Transaction` instance for chaining
+- **Throws:** Error if `builder` is not a `SQLBuilder` instance
+
+#### `savepoint(name)`
+
+Adds a `SAVEPOINT` statement to the transaction.
+
+- **Parameters:**
+  - `name` (required): Savepoint name (letters, digits, and underscores only; must start with a letter or underscore)
+- **Returns:** `Transaction` instance for chaining
+
+#### `releaseSavepoint(name)`
+
+Adds a `RELEASE SAVEPOINT` statement to the transaction.
+
+- **Parameters:**
+  - `name` (required): Savepoint name
+- **Returns:** `Transaction` instance for chaining
+
+#### `rollbackTo(name)`
+
+Adds a `ROLLBACK TO SAVEPOINT` statement to the transaction.
+
+- **Parameters:**
+  - `name` (required): Savepoint name
+- **Returns:** `Transaction` instance for chaining
+
+#### `build()` (Transaction)
+
+Builds the complete transaction SQL.
+
+- **Returns:** `{ sql: string, params: any[] }` — the full transaction SQL (wrapped in `BEGIN`/`COMMIT`) and all merged parameters
 
 ## Best Practices
 

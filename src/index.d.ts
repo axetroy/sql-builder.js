@@ -342,5 +342,98 @@ declare class SQLBuilder {
 	getQueryType(): string;
 }
 
-export { SQLBuilder };
+/**
+ * SQL 事务构建结果
+ */
+interface TransactionResult {
+	/** 完整的事务 SQL 语句（包含 BEGIN 和 COMMIT） */
+	sql: string;
+	/** 所有查询的参数数组（按顺序合并） */
+	params: any[];
+}
+
+/**
+ * SQL 事务构建器
+ * 将多个 SQLBuilder 查询包装在事务中，支持 SAVEPOINT 操作
+ * @example
+ * ```typescript
+ * const transaction = new Transaction();
+ * const { sql, params } = transaction
+ *   .add(new SQLBuilder().insert('users', { name: 'John' }))
+ *   .add(new SQLBuilder().update('accounts', { balance: 100 }).where('id', 1))
+ *   .build();
+ * // sql:
+ * // BEGIN;
+ * // INSERT INTO `users` (`name`) VALUES (?);
+ * // UPDATE `accounts` SET `balance` = ? WHERE `id` = ?;
+ * // COMMIT;
+ * ```
+ */
+declare class Transaction {
+	/**
+	 * 创建 Transaction 实例
+	 */
+	constructor();
+
+	/**
+	 * 添加一个 SQLBuilder 查询到事务中
+	 * @param builder - SQLBuilder 实例
+	 * @returns Transaction 实例
+	 * @throws 当 builder 不是 SQLBuilder 实例时抛出错误
+	 * @example
+	 * ```typescript
+	 * transaction.add(new SQLBuilder().insert('users', { name: 'John' }));
+	 * ```
+	 */
+	add(builder: SQLBuilder): this;
+
+	/**
+	 * 添加 SAVEPOINT 语句
+	 * @param name - SAVEPOINT 名称（只允许字母、数字和下划线，且以字母或下划线开头）
+	 * @returns Transaction 实例
+	 * @example
+	 * ```typescript
+	 * transaction.savepoint('sp1');
+	 * ```
+	 */
+	savepoint(name: string): this;
+
+	/**
+	 * 添加 RELEASE SAVEPOINT 语句
+	 * @param name - SAVEPOINT 名称
+	 * @returns Transaction 实例
+	 * @example
+	 * ```typescript
+	 * transaction.releaseSavepoint('sp1');
+	 * ```
+	 */
+	releaseSavepoint(name: string): this;
+
+	/**
+	 * 添加 ROLLBACK TO SAVEPOINT 语句
+	 * @param name - SAVEPOINT 名称
+	 * @returns Transaction 实例
+	 * @example
+	 * ```typescript
+	 * transaction.rollbackTo('sp1');
+	 * ```
+	 */
+	rollbackTo(name: string): this;
+
+	/**
+	 * 构建事务 SQL
+	 * @returns 包含完整事务 SQL 语句和参数的对象
+	 * @example
+	 * ```typescript
+	 * const { sql, params } = transaction.build();
+	 * console.log(sql);
+	 * // BEGIN;
+	 * // INSERT INTO `users` (`name`) VALUES (?);
+	 * // COMMIT;
+	 * ```
+	 */
+	build(): TransactionResult;
+}
+
+export { SQLBuilder, Transaction };
 export default SQLBuilder;
