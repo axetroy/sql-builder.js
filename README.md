@@ -7,6 +7,8 @@
 
 A lightweight and flexible SQL query builder for JavaScript and TypeScript applications with **built-in SQL injection protection**.
 
+English | [中文](./README.zh-CN.md)
+
 ## Features
 
 ✨ **Safe by Design**: Built-in SQL injection protection with parameterized queries and identifier validation  
