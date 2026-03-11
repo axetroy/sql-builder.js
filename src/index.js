@@ -16,6 +16,7 @@ class SQLBuilder {
 	 */
 	static #IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_.]*$/;
 	static #COUNT_AS_PATTERN = /^COUNT\(\*\)\s+AS\s+(.+)$/i;
+	static #RAW_EXPRESSION = Symbol('sqlRaw');
 
 	/**
 	 * @private
@@ -698,14 +699,31 @@ class SQLBuilder {
 	/**
 	 * 构建 UPDATE 查询
 	 * @param {string} table - 表名
-	 * @param {Object} data - 要更新的数据对象
+	 * @param {Object|string} data - 要更新的数据对象，或者列名（当使用原始表达式时）
+	 * @param {string} [rawExpression] - 原始 SQL 表达式（当 data 为列名时使用）。
+	 *   注意：原始表达式会直接嵌入 SQL，不会被参数化处理，请勿将用户输入直接传入此参数。
 	 * @returns {SQLBuilder}
 	 * @throws {Error} 当 data 为空对象时抛出错误
 	 * @example
 	 * sql.update('users', { name: 'Jane', age: 26 }).where('id', 1);
+	 * sql.update('users', 'age', 'age + 1').where('id', 1);
 	 */
-	update(table, data) {
+	update(table, data, rawExpression = undefined) {
 		this.#validateIdentifier(table);
+
+		// New signature: update(table, column, rawExpression)
+		if (typeof data === 'string' && rawExpression !== undefined) {
+			if (typeof rawExpression !== 'string') {
+				throw new Error('Raw expression must be a string');
+			}
+			this.#validateIdentifier(data);
+			const escapedData = {};
+			escapedData[this.#escapeIdentifier(data)] = { [SQLBuilder.#RAW_EXPRESSION]: true, expression: rawExpression };
+			this.#query.type = "UPDATE";
+			this.#query.table = this.#escapeIdentifier(table);
+			this.#query.set = escapedData;
+			return this;
+		}
 
 		if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
 			throw new Error('Update data cannot be empty');
@@ -878,7 +896,13 @@ class SQLBuilder {
 	 */
 	#buildUpdate() {
 		const setClauses = Object.keys(this.#query.set)
-			.map((column) => `${column} = ?`)
+			.map((column) => {
+				const value = this.#query.set[column];
+				if (value !== null && typeof value === 'object' && value[SQLBuilder.#RAW_EXPRESSION] === true) {
+					return `${column} = ${value.expression}`;
+				}
+				return `${column} = ?`;
+			})
 			.join(", ");
 
 		const parts = [`UPDATE ${this.#query.table} SET ${setClauses}`];

@@ -362,6 +362,16 @@ describe("SQLBuilder", () => {
 			assert.deepStrictEqual(params, ["Jane Doe", "jane@example.com", 1]);
 		});
 
+		it("应该支持原始 SQL 表达式", () => {
+			const { sql, params } = sqlBuilder
+				.update("users", "age", "age + 1")
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `age` = age + 1 WHERE `id` = ?");
+			assert.deepStrictEqual(params, [1]);
+		});
+
 		it("应该要求 WHERE 条件", () => {
 			assert.throws(() => {
 				sqlBuilder.update("users", { name: "Test" }).build();

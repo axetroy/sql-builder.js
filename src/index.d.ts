@@ -274,6 +274,20 @@ declare class SQLBuilder {
 	insert(table: string, data: Record<string, any>): this;
 
 	/**
+	 * 构建 UPDATE 查询（使用原始 SQL 表达式）
+	 * @param table - 表名
+	 * @param column - 要更新的列名
+	 * @param rawExpression - 原始 SQL 表达式（直接嵌入 SQL，不会参数化）
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.update('users', 'age', 'age + 1').where('id', 1);
+	 * // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
+	 * ```
+	 */
+	update(table: string, column: string, rawExpression: string): this;
+
+	/**
 	 * 构建 UPDATE 查询
 	 * @param table - 表名
 	 * @param data - 要更新的数据对象
