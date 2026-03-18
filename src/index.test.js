@@ -362,6 +362,20 @@ describe("SQLBuilder", () => {
 			assert.deepStrictEqual(params, ["Jane Doe", "jane@example.com", 1]);
 		});
 
+		it("自动过滤掉 undefined 值", () => {
+			const { sql, params } = sqlBuilder
+				.update("users", {
+					name: "Jane Doe",
+					email: undefined, // 这个字段应该被忽略
+					age: 30,
+				})
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `name` = ?, `age` = ? WHERE `id` = ?");
+			assert.deepStrictEqual(params, ["Jane Doe", 30, 1]);
+		});
+
 		it("应该要求 WHERE 条件", () => {
 			assert.throws(() => {
 				sqlBuilder.update("users", { name: "Test" }).build();
@@ -492,7 +506,7 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(
 				sql,
-				"SELECT `id`, `name`, `email`, COUNT(*) OVER() AS __total_count FROM `users` WHERE `status` = ? LIMIT 10"
+				"SELECT `id`, `name`, `email`, COUNT(*) OVER() AS __total_count FROM `users` WHERE `status` = ? LIMIT 10",
 			);
 			assert.deepStrictEqual(params, ["active"]);
 		});
@@ -537,7 +551,7 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(
 				sql,
-				"SELECT `category`, COUNT(*) AS `count`, COUNT(*) OVER() AS __total_count FROM `products` GROUP BY `category`"
+				"SELECT `category`, COUNT(*) AS `count`, COUNT(*) OVER() AS __total_count FROM `products` GROUP BY `category`",
 			);
 			assert.deepStrictEqual(params, []);
 		});
@@ -557,7 +571,7 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(
 				sql,
-				"SELECT `id`, `title`, `created_at`, COUNT(*) OVER() AS __total_count FROM `articles` WHERE `published` = ? ORDER BY `created_at` DESC LIMIT 10 OFFSET 10"
+				"SELECT `id`, `title`, `created_at`, COUNT(*) OVER() AS __total_count FROM `articles` WHERE `published` = ? ORDER BY `created_at` DESC LIMIT 10 OFFSET 10",
 			);
 			assert.deepStrictEqual(params, [true]);
 		});
@@ -596,7 +610,7 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(
 				sql,
-				"SELECT `id`, `name`, `email`, COUNT(*) OVER() AS __total_count FROM `users` WHERE `status` = ? AND `name` LIKE ? ORDER BY `id` ASC LIMIT 10 OFFSET 0"
+				"SELECT `id`, `name`, `email`, COUNT(*) OVER() AS __total_count FROM `users` WHERE `status` = ? AND `name` LIKE ? ORDER BY `id` ASC LIMIT 10 OFFSET 0",
 			);
 			assert.deepStrictEqual(params, ["active", "%john%"]);
 		});
@@ -614,10 +628,7 @@ describe("SQLBuilder", () => {
 				.add(new SQLBuilder().insert("users", { name: "John", email: "john@example.com" }))
 				.build();
 
-			assert.strictEqual(
-				sql,
-				"BEGIN;\nINSERT INTO `users` (`name`, `email`) VALUES (?, ?);\nCOMMIT;"
-			);
+			assert.strictEqual(sql, "BEGIN;\nINSERT INTO `users` (`name`, `email`) VALUES (?, ?);\nCOMMIT;");
 			assert.deepStrictEqual(params, ["John", "john@example.com"]);
 		});
 
@@ -629,7 +640,7 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(
 				sql,
-				"BEGIN;\nINSERT INTO `users` (`name`) VALUES (?);\nUPDATE `accounts` SET `balance` = ? WHERE `id` = ?;\nCOMMIT;"
+				"BEGIN;\nINSERT INTO `users` (`name`) VALUES (?);\nUPDATE `accounts` SET `balance` = ? WHERE `id` = ?;\nCOMMIT;",
 			);
 			assert.deepStrictEqual(params, ["John", 100, 1]);
 		});
@@ -644,7 +655,7 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(
 				sql,
-				"BEGIN;\nINSERT INTO `users` (`name`) VALUES (?);\nSAVEPOINT sp1;\nUPDATE `accounts` SET `balance` = ? WHERE `id` = ?;\nRELEASE SAVEPOINT sp1;\nCOMMIT;"
+				"BEGIN;\nINSERT INTO `users` (`name`) VALUES (?);\nSAVEPOINT sp1;\nUPDATE `accounts` SET `balance` = ? WHERE `id` = ?;\nRELEASE SAVEPOINT sp1;\nCOMMIT;",
 			);
 			assert.deepStrictEqual(params, ["John", 100, 1]);
 		});
@@ -659,7 +670,7 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(
 				sql,
-				"BEGIN;\nINSERT INTO `users` (`name`) VALUES (?);\nSAVEPOINT sp1;\nUPDATE `accounts` SET `balance` = ? WHERE `id` = ?;\nROLLBACK TO SAVEPOINT sp1;\nCOMMIT;"
+				"BEGIN;\nINSERT INTO `users` (`name`) VALUES (?);\nSAVEPOINT sp1;\nUPDATE `accounts` SET `balance` = ? WHERE `id` = ?;\nROLLBACK TO SAVEPOINT sp1;\nCOMMIT;",
 			);
 			assert.deepStrictEqual(params, ["John", 100, 1]);
 		});

@@ -161,7 +161,7 @@ class SQLBuilder {
 	#buildPlaceholders(count) {
 		if (count <= 0) return "";
 		if (count === 1) return "?";
-		
+
 		let placeholders = "?";
 		for (let i = 1; i < count; i++) {
 			placeholders += ", ?";
@@ -677,8 +677,8 @@ class SQLBuilder {
 	insert(table, data) {
 		this.#validateIdentifier(table);
 
-		if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
-			throw new Error('Insert data cannot be empty');
+		if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
+			throw new Error("Insert data cannot be empty");
 		}
 
 		// 转义所有列名
@@ -707,21 +707,26 @@ class SQLBuilder {
 	update(table, data) {
 		this.#validateIdentifier(table);
 
-		if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
-			throw new Error('Update data cannot be empty');
+		if (!data || typeof data !== "object") {
+			throw new Error("Update data cannot be empty");
+		}
+
+		const entries = Object.entries(data).filter(([, value]) => value !== undefined);
+		if (entries.length === 0) {
+			throw new Error("Update data cannot be empty");
 		}
 
 		// 转义所有列名
 		const escapedData = {};
-		Object.keys(data).forEach((key) => {
+		entries.forEach(([key, value]) => {
 			this.#validateIdentifier(key);
-			escapedData[this.#escapeIdentifier(key)] = data[key];
+			escapedData[this.#escapeIdentifier(key)] = value;
 		});
 
 		this.#query.type = "UPDATE";
 		this.#query.table = this.#escapeIdentifier(table);
 		this.#query.set = escapedData;
-		this.#params.push(...Object.values(data));
+		this.#params.push(...entries.map(([, value]) => value));
 		return this;
 	}
 
@@ -808,7 +813,7 @@ class SQLBuilder {
 		if (this.#query.joins.length > 0) {
 			this.#query.joins.forEach((join) => {
 				parts.push(
-					`${join.type} JOIN ${join.table} ON ${join.condition.first} ${join.condition.operator} ${join.condition.second}`
+					`${join.type} JOIN ${join.table} ON ${join.condition.first} ${join.condition.operator} ${join.condition.second}`,
 				);
 			});
 		}
@@ -821,8 +826,8 @@ class SQLBuilder {
 					condition.operator === "IS" || condition.operator === "IS NOT"
 						? "NULL"
 						: condition.operator === "IN" || condition.operator === "NOT IN" || condition.operator === "BETWEEN"
-						? condition.value
-						: "?";
+							? condition.value
+							: "?";
 				return `${connector} ${condition.column} ${condition.operator} ${valuePlaceholder}`;
 			});
 			parts.push(whereClauses.join(" "));
