@@ -332,6 +332,18 @@ declare class SQLBuilder {
 	update(table: string, column: string, rawExpression: string): this;
 
 	/**
+	 * 为 SELECT 查询添加行级锁定子句
+	 * @param mode - 锁定模式
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.select('*').from('users').where('id', 1).lock('FOR UPDATE');
+	 * // SELECT * FROM `users` WHERE `id` = ? FOR UPDATE
+	 * ```
+	 */
+	lock(mode: "FOR UPDATE" | "FOR SHARE" | "LOCK IN SHARE MODE"): this;
+
+	/**
 	 * 构建 DELETE 查询
 	 * @param table - 表名（可选）
 	 * @returns SQLBuilder 实例
@@ -418,8 +430,16 @@ interface TransactionResult {
 declare class Transaction {
 	/**
 	 * 创建 Transaction 实例
+	 * @param type - 事务类型，可选值为 DEFERRED、IMMEDIATE、EXCLUSIVE
+	 * @throws 当类型不合法时抛出错误
+	 * @example
+	 * ```typescript
+	 * new Transaction('DEFERRED');
+	 * new Transaction('IMMEDIATE');
+	 * new Transaction('EXCLUSIVE');
+	 * ```
 	 */
-	constructor();
+	constructor(type?: "DEFERRED" | "IMMEDIATE" | "EXCLUSIVE");
 
 	/**
 	 * 添加一个 SQLBuilder 查询到事务中

@@ -69,6 +69,7 @@ class SQLBuilder {
 		values: {},
 		set: {},
 		withTotal: undefined,
+		lock: null,
 	};
 
 	/**
@@ -195,7 +196,7 @@ class SQLBuilder {
 	#buildPlaceholders(count) {
 		if (count <= 0) return "";
 		if (count === 1) return "?";
-		
+
 		let placeholders = "?";
 		for (let i = 1; i < count; i++) {
 			placeholders += ", ?";
@@ -241,6 +242,7 @@ class SQLBuilder {
 			values: {},
 			set: {},
 			withTotal: undefined,
+			lock: null,
 		};
 		this.#params = [];
 		return this;
@@ -711,8 +713,8 @@ class SQLBuilder {
 	insert(table, data) {
 		this.#validateIdentifier(table);
 
-		if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
-			throw new Error('Insert data cannot be empty');
+		if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
+			throw new Error("Insert data cannot be empty");
 		}
 
 		// 转义所有列名
@@ -750,24 +752,26 @@ class SQLBuilder {
 			return this.update(table, { [data]: raw(rawExpression) });
 		}
 
-		if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
+		if (!data || typeof data !== "object") {
+			throw new Error("Update data cannot be empty");
+		}
+
+		const entries = Object.entries(data).filter(([, value]) => value !== undefined);
+		if (entries.length === 0) {
 			throw new Error("Update data cannot be empty");
 		}
 
 		// 转义所有列名，区分普通值和原始表达式
 		const escapedData = {};
-		Object.keys(data).forEach((key) => {
+		entries.forEach(([key, value]) => {
 			this.#validateIdentifier(key);
-			const value = data[key];
 			escapedData[this.#escapeIdentifier(key)] = value;
-			if (!(value instanceof RawExpression)) {
-				this.#params.push(value);
-			}
 		});
 
 		this.#query.type = "UPDATE";
 		this.#query.table = this.#escapeIdentifier(table);
 		this.#query.set = escapedData;
+		this.#params.push(...entries.filter(([, value]) => !(value instanceof RawExpression)).map(([, value]) => value));
 		return this;
 	}
 
@@ -785,6 +789,35 @@ class SQLBuilder {
 			this.#validateIdentifier(table);
 			this.#query.table = this.#escapeIdentifier(table);
 		}
+		return this;
+	}
+
+	/**
+	 * 允许的锁定模式白名单
+	 * @private
+	 * @static
+	 * @type {Set<string>}
+	 */
+	static #ALLOWED_LOCK_MODES = new Set(["FOR UPDATE", "FOR SHARE", "LOCK IN SHARE MODE"]);
+
+	/**
+	 * 为 SELECT 查询添加行级锁定子句
+	 * @param {'FOR UPDATE'|'FOR SHARE'|'LOCK IN SHARE MODE'} mode - 锁定模式
+	 * @returns {SQLBuilder}
+	 * @throws {Error} 当锁定模式不合法时抛出错误
+	 * @example
+	 * sql.select('*').from('users').where('id', 1).lock('FOR UPDATE');
+	 * // SELECT * FROM `users` WHERE `id` = ? FOR UPDATE
+	 */
+	lock(mode) {
+		if (typeof mode !== "string") {
+			throw new Error(`Invalid lock mode: ${mode}. Allowed modes: FOR UPDATE, FOR SHARE, LOCK IN SHARE MODE`);
+		}
+		const upperMode = mode.toUpperCase();
+		if (!SQLBuilder.#ALLOWED_LOCK_MODES.has(upperMode)) {
+			throw new Error(`Invalid lock mode: ${mode}. Allowed modes: FOR UPDATE, FOR SHARE, LOCK IN SHARE MODE`);
+		}
+		this.#query.lock = upperMode;
 		return this;
 	}
 
@@ -854,7 +887,7 @@ class SQLBuilder {
 		if (this.#query.joins.length > 0) {
 			this.#query.joins.forEach((join) => {
 				parts.push(
-					`${join.type} JOIN ${join.table} ON ${join.condition.first} ${join.condition.operator} ${join.condition.second}`
+					`${join.type} JOIN ${join.table} ON ${join.condition.first} ${join.condition.operator} ${join.condition.second}`,
 				);
 			});
 		}
@@ -867,8 +900,8 @@ class SQLBuilder {
 					condition.operator === "IS" || condition.operator === "IS NOT"
 						? "NULL"
 						: condition.operator === "IN" || condition.operator === "NOT IN" || condition.operator === "BETWEEN"
-						? condition.value
-						: "?";
+							? condition.value
+							: "?";
 				return `${connector} ${condition.column} ${condition.operator} ${valuePlaceholder}`;
 			});
 			parts.push(whereClauses.join(" "));
@@ -892,6 +925,11 @@ class SQLBuilder {
 
 		if (this.#query.offset !== null) {
 			parts.push(`OFFSET ${this.#query.offset}`);
+		}
+
+		// LOCK 部分
+		if (this.#query.lock !== null) {
+			parts.push(this.#query.lock);
 		}
 
 		return {
@@ -1054,10 +1092,45 @@ class Transaction {
 	static #SAVEPOINT_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 	/**
+	 * Valid BEGIN transaction types
+	 * @private
+	 * @static
+	 */
+	static #VALID_TYPES = ["DEFERRED", "IMMEDIATE", "EXCLUSIVE"];
+
+	/**
+	 * @private
+	 * @type {string|null}
+	 */
+	#beginType = null;
+
+	/**
 	 * @private
 	 * @type {Array<{type: string, builder?: SQLBuilder, name?: string}>}
 	 */
 	#statements = [];
+
+	/**
+	 * 创建 Transaction 实例
+	 * @param {string} [type] - 事务类型，可选值为 DEFERRED、IMMEDIATE、EXCLUSIVE
+	 * @throws {Error} 当类型不合法时抛出错误
+	 * @example
+	 * new Transaction('DEFERRED');
+	 * new Transaction('IMMEDIATE');
+	 * new Transaction('EXCLUSIVE');
+	 */
+	constructor(type) {
+		if (type !== undefined) {
+			if (typeof type !== "string") {
+				throw new Error(`Invalid transaction type: ${type}. Must be one of: ${Transaction.#VALID_TYPES.join(", ")}`);
+			}
+			const upperType = type.toUpperCase();
+			if (!Transaction.#VALID_TYPES.includes(upperType)) {
+				throw new Error(`Invalid transaction type: ${type}. Must be one of: ${Transaction.#VALID_TYPES.join(", ")}`);
+			}
+			this.#beginType = upperType;
+		}
+	}
 
 	/**
 	 * 验证 SAVEPOINT 名称是否合法
@@ -1133,7 +1206,7 @@ class Transaction {
 	 * const { sql, params } = transaction.build();
 	 */
 	build() {
-		const parts = ["BEGIN"];
+		const parts = [this.#beginType ? `BEGIN ${this.#beginType}` : "BEGIN"];
 		const params = [];
 
 		for (const stmt of this.#statements) {

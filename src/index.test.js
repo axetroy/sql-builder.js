@@ -362,6 +362,36 @@ describe("SQLBuilder", () => {
 			assert.deepStrictEqual(params, ["Jane Doe", "jane@example.com", 1]);
 		});
 
+		it("自动过滤掉 undefined 值", () => {
+			const { sql, params } = sqlBuilder
+				.update("users", {
+					name: "Jane Doe",
+					email: undefined, // 这个字段应该被忽略
+					age: 30,
+				})
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `name` = ?, `age` = ? WHERE `id` = ?");
+			assert.deepStrictEqual(params, ["Jane Doe", 30, 1]);
+		});
+
+		it("应该要求 WHERE 条件", () => {
+			assert.throws(() => {
+				sqlBuilder.update("users", { name: "Test" }).build();
+			}, /UPDATE query requires WHERE clause/);
+		});
+
+		it("应该拒绝空数据对象", () => {
+			assert.throws(() => {
+				sqlBuilder.update("users", {}).where("id", 1).build();
+			}, /Update data cannot be empty/);
+
+			assert.throws(() => {
+				sqlBuilder.update("users", null).where("id", 1).build();
+			}, /Update data cannot be empty/);
+		});
+
 		it("应该支持 update(table, column, rawExpression) 简写形式", () => {
 			const { sql, params } = sqlBuilder
 				.update("users", "age", "age + 1")
@@ -390,22 +420,6 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(sql, "UPDATE `users` SET `age` = age + 1, `name` = ? WHERE `id` = ?");
 			assert.deepStrictEqual(params, ["Jane", 1]);
-		});
-
-		it("应该要求 WHERE 条件", () => {
-			assert.throws(() => {
-				sqlBuilder.update("users", { name: "Test" }).build();
-			}, /UPDATE query requires WHERE clause/);
-		});
-
-		it("应该拒绝空数据对象", () => {
-			assert.throws(() => {
-				sqlBuilder.update("users", {}).where("id", 1).build();
-			}, /Update data cannot be empty/);
-
-			assert.throws(() => {
-				sqlBuilder.update("users", null).where("id", 1).build();
-			}, /Update data cannot be empty/);
 		});
 
 		it("应该拒绝空的原始表达式字符串", () => {
@@ -532,7 +546,7 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(
 				sql,
-				"SELECT `id`, `name`, `email`, COUNT(*) OVER() AS __total_count FROM `users` WHERE `status` = ? LIMIT 10"
+				"SELECT `id`, `name`, `email`, COUNT(*) OVER() AS __total_count FROM `users` WHERE `status` = ? LIMIT 10",
 			);
 			assert.deepStrictEqual(params, ["active"]);
 		});
@@ -577,7 +591,7 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(
 				sql,
-				"SELECT `category`, COUNT(*) AS `count`, COUNT(*) OVER() AS __total_count FROM `products` GROUP BY `category`"
+				"SELECT `category`, COUNT(*) AS `count`, COUNT(*) OVER() AS __total_count FROM `products` GROUP BY `category`",
 			);
 			assert.deepStrictEqual(params, []);
 		});
@@ -597,7 +611,7 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(
 				sql,
-				"SELECT `id`, `title`, `created_at`, COUNT(*) OVER() AS __total_count FROM `articles` WHERE `published` = ? ORDER BY `created_at` DESC LIMIT 10 OFFSET 10"
+				"SELECT `id`, `title`, `created_at`, COUNT(*) OVER() AS __total_count FROM `articles` WHERE `published` = ? ORDER BY `created_at` DESC LIMIT 10 OFFSET 10",
 			);
 			assert.deepStrictEqual(params, [true]);
 		});
@@ -636,7 +650,7 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(
 				sql,
-				"SELECT `id`, `name`, `email`, COUNT(*) OVER() AS __total_count FROM `users` WHERE `status` = ? AND `name` LIKE ? ORDER BY `id` ASC LIMIT 10 OFFSET 0"
+				"SELECT `id`, `name`, `email`, COUNT(*) OVER() AS __total_count FROM `users` WHERE `status` = ? AND `name` LIKE ? ORDER BY `id` ASC LIMIT 10 OFFSET 0",
 			);
 			assert.deepStrictEqual(params, ["active", "%john%"]);
 		});
@@ -654,10 +668,7 @@ describe("SQLBuilder", () => {
 				.add(new SQLBuilder().insert("users", { name: "John", email: "john@example.com" }))
 				.build();
 
-			assert.strictEqual(
-				sql,
-				"BEGIN;\nINSERT INTO `users` (`name`, `email`) VALUES (?, ?);\nCOMMIT;"
-			);
+			assert.strictEqual(sql, "BEGIN;\nINSERT INTO `users` (`name`, `email`) VALUES (?, ?);\nCOMMIT;");
 			assert.deepStrictEqual(params, ["John", "john@example.com"]);
 		});
 
@@ -669,7 +680,7 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(
 				sql,
-				"BEGIN;\nINSERT INTO `users` (`name`) VALUES (?);\nUPDATE `accounts` SET `balance` = ? WHERE `id` = ?;\nCOMMIT;"
+				"BEGIN;\nINSERT INTO `users` (`name`) VALUES (?);\nUPDATE `accounts` SET `balance` = ? WHERE `id` = ?;\nCOMMIT;",
 			);
 			assert.deepStrictEqual(params, ["John", 100, 1]);
 		});
@@ -684,7 +695,7 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(
 				sql,
-				"BEGIN;\nINSERT INTO `users` (`name`) VALUES (?);\nSAVEPOINT sp1;\nUPDATE `accounts` SET `balance` = ? WHERE `id` = ?;\nRELEASE SAVEPOINT sp1;\nCOMMIT;"
+				"BEGIN;\nINSERT INTO `users` (`name`) VALUES (?);\nSAVEPOINT sp1;\nUPDATE `accounts` SET `balance` = ? WHERE `id` = ?;\nRELEASE SAVEPOINT sp1;\nCOMMIT;",
 			);
 			assert.deepStrictEqual(params, ["John", 100, 1]);
 		});
@@ -699,7 +710,7 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(
 				sql,
-				"BEGIN;\nINSERT INTO `users` (`name`) VALUES (?);\nSAVEPOINT sp1;\nUPDATE `accounts` SET `balance` = ? WHERE `id` = ?;\nROLLBACK TO SAVEPOINT sp1;\nCOMMIT;"
+				"BEGIN;\nINSERT INTO `users` (`name`) VALUES (?);\nSAVEPOINT sp1;\nUPDATE `accounts` SET `balance` = ? WHERE `id` = ?;\nROLLBACK TO SAVEPOINT sp1;\nCOMMIT;",
 			);
 			assert.deepStrictEqual(params, ["John", 100, 1]);
 		});
@@ -755,6 +766,117 @@ describe("SQLBuilder", () => {
 				.build();
 
 			assert.deepStrictEqual(params, [1, 99.99, 10, 5, 1]);
+		});
+
+		it("应该支持 BEGIN DEFERRED", () => {
+			const { sql, params } = new Transaction("DEFERRED")
+				.add(new SQLBuilder().insert("users", { name: "John" }))
+				.build();
+
+			assert.strictEqual(sql, "BEGIN DEFERRED;\nINSERT INTO `users` (`name`) VALUES (?);\nCOMMIT;");
+			assert.deepStrictEqual(params, ["John"]);
+		});
+
+		it("应该支持 BEGIN IMMEDIATE", () => {
+			const { sql, params } = new Transaction("IMMEDIATE")
+				.add(new SQLBuilder().insert("users", { name: "John" }))
+				.build();
+
+			assert.strictEqual(sql, "BEGIN IMMEDIATE;\nINSERT INTO `users` (`name`) VALUES (?);\nCOMMIT;");
+			assert.deepStrictEqual(params, ["John"]);
+		});
+
+		it("应该支持 BEGIN EXCLUSIVE", () => {
+			const { sql, params } = new Transaction("EXCLUSIVE")
+				.add(new SQLBuilder().insert("users", { name: "John" }))
+				.build();
+
+			assert.strictEqual(sql, "BEGIN EXCLUSIVE;\nINSERT INTO `users` (`name`) VALUES (?);\nCOMMIT;");
+			assert.deepStrictEqual(params, ["John"]);
+		});
+
+		it("应该验证 Transaction 构造函数的 type 参数合法性", () => {
+			assert.throws(() => {
+				new Transaction("INVALID");
+			}, /Invalid transaction type/);
+
+			assert.throws(() => {
+				new Transaction("begin");
+			}, /Invalid transaction type/);
+
+			assert.throws(() => {
+				new Transaction(123);
+			}, /Invalid transaction type/);
+		});
+	});
+
+	describe("lock() 方法", () => {
+		it("应该支持 FOR UPDATE 锁", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").where("id", 1).lock("FOR UPDATE").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `id` = ? FOR UPDATE");
+			assert.deepStrictEqual(params, [1]);
+		});
+
+		it("应该支持 FOR SHARE 锁", () => {
+			const { sql, params } = sqlBuilder.select("*").from("accounts").where("id", 2).lock("FOR SHARE").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `accounts` WHERE `id` = ? FOR SHARE");
+			assert.deepStrictEqual(params, [2]);
+		});
+
+		it("应该支持 LOCK IN SHARE MODE 锁", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("orders")
+				.where("status", "pending")
+				.lock("LOCK IN SHARE MODE")
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `orders` WHERE `status` = ? LOCK IN SHARE MODE");
+			assert.deepStrictEqual(params, ["pending"]);
+		});
+
+		it("应该忽略大小写", () => {
+			const { sql } = sqlBuilder.select("*").from("users").where("id", 1).lock("for update").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `id` = ? FOR UPDATE");
+		});
+
+		it("应该拒绝无效的锁定模式", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").lock("INVALID MODE");
+			}, /Invalid lock mode/);
+
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").lock("");
+			}, /Invalid lock mode/);
+
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").lock(null);
+			}, /Invalid lock mode/);
+		});
+
+		it("应该在事务中正确使用 FOR UPDATE 锁", () => {
+			const { sql, params } = new Transaction()
+				.add(new SQLBuilder().select("*").from("users").where("id", 1).lock("FOR UPDATE"))
+				.add(new SQLBuilder().update("users", { name: "Jane" }).where("id", 1))
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"BEGIN;\nSELECT * FROM `users` WHERE `id` = ? FOR UPDATE;\nUPDATE `users` SET `name` = ? WHERE `id` = ?;\nCOMMIT;",
+			);
+			assert.deepStrictEqual(params, [1, "Jane", 1]);
+		});
+
+		it("reset() 应该清除锁定状态", () => {
+			sqlBuilder.select("*").from("users").where("id", 1).lock("FOR UPDATE");
+			sqlBuilder.reset();
+
+			const { sql } = sqlBuilder.select("*").from("users").where("id", 1).build();
+
+			assert.ok(!sql.includes("FOR UPDATE"));
 		});
 	});
 });
