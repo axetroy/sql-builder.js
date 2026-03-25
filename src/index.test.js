@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
-import SQLBuilder, { Transaction } from "./index.js";
+import SQLBuilder, { Transaction, RawExpression, raw } from "./index.js";
 
 /**
  * SQLBuilder 单元测试
@@ -362,7 +362,7 @@ describe("SQLBuilder", () => {
 			assert.deepStrictEqual(params, ["Jane Doe", "jane@example.com", 1]);
 		});
 
-		it("应该支持原始 SQL 表达式", () => {
+		it("应该支持 update(table, column, rawExpression) 简写形式", () => {
 			const { sql, params } = sqlBuilder
 				.update("users", "age", "age + 1")
 				.where("id", 1)
@@ -370,6 +370,26 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(sql, "UPDATE `users` SET `age` = age + 1 WHERE `id` = ?");
 			assert.deepStrictEqual(params, [1]);
+		});
+
+		it("应该支持数据对象中使用 raw() 表达式", () => {
+			const { sql, params } = sqlBuilder
+				.update("users", { age: raw("age + 1") })
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `age` = age + 1 WHERE `id` = ?");
+			assert.deepStrictEqual(params, [1]);
+		});
+
+		it("应该支持混合普通值和 raw() 表达式", () => {
+			const { sql, params } = sqlBuilder
+				.update("users", { age: raw("age + 1"), name: "Jane" })
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `age` = age + 1, `name` = ? WHERE `id` = ?");
+			assert.deepStrictEqual(params, ["Jane", 1]);
 		});
 
 		it("应该要求 WHERE 条件", () => {
@@ -386,6 +406,16 @@ describe("SQLBuilder", () => {
 			assert.throws(() => {
 				sqlBuilder.update("users", null).where("id", 1).build();
 			}, /Update data cannot be empty/);
+		});
+
+		it("应该拒绝空的原始表达式字符串", () => {
+			assert.throws(() => {
+				raw("");
+			}, /Raw expression must be a non-empty string/);
+
+			assert.throws(() => {
+				sqlBuilder.update("users", "age", "");
+			}, /Raw expression must be a non-empty string/);
 		});
 	});
 

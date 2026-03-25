@@ -9,6 +9,36 @@ interface BuildResult {
 }
 
 /**
+ * 原始 SQL 表达式包装器，用于在 UPDATE 语句中嵌入不参数化的表达式
+ * @example
+ * ```typescript
+ * sqlBuilder.update('users', { age: raw('age + 1') }).where('id', 1);
+ * // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
+ * ```
+ */
+declare class RawExpression {
+	/** 原始 SQL 表达式字符串 */
+	readonly expression: string;
+	/**
+	 * @param expression - 原始 SQL 表达式（不会被参数化，请勿传入用户输入）
+	 */
+	constructor(expression: string);
+}
+
+/**
+ * 创建一个原始 SQL 表达式，用于在 UPDATE 语句中嵌入不参数化的列表达式。
+ * 注意：表达式会直接嵌入 SQL，请勿将用户输入传入此函数。
+ * @param expression - 原始 SQL 表达式
+ * @returns RawExpression 实例
+ * @example
+ * ```typescript
+ * sqlBuilder.update('users', { age: raw('age + 1') }).where('id', 1);
+ * // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
+ * ```
+ */
+declare function raw(expression: string): RawExpression;
+
+/**
  * 安全的 SQL 查询构建器
  * 提供全面的 SQL 注入防护，使用参数化查询和标识符验证
  * @example
@@ -274,10 +304,24 @@ declare class SQLBuilder {
 	insert(table: string, data: Record<string, any>): this;
 
 	/**
-	 * 构建 UPDATE 查询（使用原始 SQL 表达式）
+	 * 构建 UPDATE 查询
+	 * @param table - 表名
+	 * @param data - 要更新的数据对象（值可以是普通值或 RawExpression）
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.update('users', { name: 'Jane', age: 26 }).where('id', 1);
+	 * sql.update('users', { age: raw('age + 1') }).where('id', 1);
+	 * // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
+	 * ```
+	 */
+	update(table: string, data: Record<string, any | RawExpression>): this;
+
+	/**
+	 * 构建 UPDATE 查询（单列原始表达式简写形式）
 	 * @param table - 表名
 	 * @param column - 要更新的列名
-	 * @param rawExpression - 原始 SQL 表达式（直接嵌入 SQL，不会参数化）
+	 * @param rawExpression - 原始 SQL 表达式（直接嵌入 SQL，不会参数化，请勿传入用户输入）
 	 * @returns SQLBuilder 实例
 	 * @example
 	 * ```typescript
@@ -286,18 +330,6 @@ declare class SQLBuilder {
 	 * ```
 	 */
 	update(table: string, column: string, rawExpression: string): this;
-
-	/**
-	 * 构建 UPDATE 查询
-	 * @param table - 表名
-	 * @param data - 要更新的数据对象
-	 * @returns SQLBuilder 实例
-	 * @example
-	 * ```typescript
-	 * sql.update('users', { name: 'Jane', age: 26 }).where('id', 1);
-	 * ```
-	 */
-	update(table: string, data: Record<string, any>): this;
 
 	/**
 	 * 构建 DELETE 查询
@@ -449,5 +481,5 @@ declare class Transaction {
 	build(): TransactionResult;
 }
 
-export { SQLBuilder, Transaction };
+export { SQLBuilder, Transaction, RawExpression, raw };
 export default SQLBuilder;
