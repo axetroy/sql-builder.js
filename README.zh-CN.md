@@ -57,6 +57,8 @@ console.log(params); // [18]
   - [排序与分组](#排序与分组)
   - [分页](#分页)
   - [带总数的分页](#带总数的分页)
+  - [原始 SQL 表达式](#原始-sql-表达式)
+  - [行级锁](#行级锁)
   - [事务](#事务)
 - [安全特性](#安全特性)
 - [API 参考](#api-参考)
@@ -137,6 +139,39 @@ const { sql, params } = sqlBuilder
 // UPDATE `users` SET `name` = ?, `age` = ? WHERE `id` = ?
 // params: ['李四', 26, 1]
 ```
+
+#### UPDATE 中的原始 SQL 表达式
+
+使用 `raw()` 可在 `SET` 子句中直接嵌入 SQL 表达式——例如，将某列相对于其当前值递增：
+
+```js
+import { SQLBuilder, raw } from "sql-builder.js";
+
+// 简写形式：update(table, column, expression)
+const { sql, params } = sqlBuilder
+  .update("users", "age", "age + 1")
+  .where("id", 1)
+  .build();
+// UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
+// params: [1]
+
+// 对象形式，使用 raw()
+sqlBuilder
+  .update("users", { age: raw("age + 1") })
+  .where("id", 1)
+  .build();
+// UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
+
+// 混合使用原始表达式和参数化值
+sqlBuilder
+  .update("users", { age: raw("age + 1"), name: "李四" })
+  .where("id", 1)
+  .build();
+// UPDATE `users` SET `age` = age + 1, `name` = ? WHERE `id` = ?
+// params: ['李四', 1]
+```
+
+> ⚠️ **安全提示**：原始表达式会直接嵌入 SQL 字符串，**不会**被参数化。**请勿将用户输入传入 `raw()`。**
 
 **安全提示**：UPDATE 查询需要 WHERE 子句，以防止意外的数据损失。
 
@@ -431,6 +466,50 @@ sqlBuilder.withTotal();
 sqlBuilder.withTotal("total_rows");
 ```
 
+### 原始 SQL 表达式
+
+使用 `raw()` 辅助函数可在 `UPDATE` 的 `SET` 子句中直接嵌入 SQL 片段，用于需要引用列本身的表达式（如 `age = age + 1`）。
+
+```js
+import { SQLBuilder, raw } from "sql-builder.js";
+
+// 简写形式：update(table, column, expression)
+sqlBuilder.update("users", "views", "views + 1").where("id", 1).build();
+// UPDATE `users` SET `views` = views + 1 WHERE `id` = ?
+
+// 对象形式
+sqlBuilder.update("users", { score: raw("score * 2") }).where("id", 1).build();
+// UPDATE `users` SET `score` = score * 2 WHERE `id` = ?
+
+// 混合使用：原始表达式与参数化值共存
+sqlBuilder
+  .update("users", { age: raw("age + 1"), name: "李四" })
+  .where("id", 1)
+  .build();
+// UPDATE `users` SET `age` = age + 1, `name` = ? WHERE `id` = ?
+// params: ['李四', 1]
+```
+
+> ⚠️ **安全提示**：`raw()` 表达式**不会**被参数化，会直接嵌入 SQL 字符串。请勿将用户输入传入 `raw()`。
+
+### 行级锁
+
+在 `SELECT` 查询中添加 `FOR UPDATE` 或 `FOR SHARE` 以锁定所选行：
+
+```js
+// 排他锁（FOR UPDATE）
+sqlBuilder.select("*").from("users").where("id", 1).lock("FOR UPDATE").build();
+// SELECT * FROM `users` WHERE `id` = ? FOR UPDATE
+
+// 共享锁
+sqlBuilder.select("*").from("users").where("id", 1).lock("FOR SHARE").build();
+// SELECT * FROM `users` WHERE `id` = ? FOR SHARE
+
+// MySQL 兼容的共享锁语法
+sqlBuilder.select("*").from("users").where("id", 1).lock("LOCK IN SHARE MODE").build();
+// SELECT * FROM `users` WHERE `id` = ? LOCK IN SHARE MODE
+```
+
 ### 事务
 
 使用 `Transaction` 类将多个查询包装在数据库事务中：
@@ -450,6 +529,16 @@ console.log(sql);
 // COMMIT;
 
 console.log(params); // ["张三", "zhang@example.com", 500, 1]
+```
+
+#### 事务隔离级别
+
+向 `new Transaction()` 传入可选类型以控制 `BEGIN` 语句：
+
+```js
+new Transaction("DEFERRED").add(...).build();  // BEGIN DEFERRED;
+new Transaction("IMMEDIATE").add(...).build(); // BEGIN IMMEDIATE;
+new Transaction("EXCLUSIVE").add(...).build(); // BEGIN EXCLUSIVE;
 ```
 
 #### 使用 SAVEPOINT
@@ -569,8 +658,33 @@ const sqlBuilder = new SQLBuilder();
 
 - **参数：**
   - `table`（string）：表名
-  - `data`（object）：以列名为键、新值为值的对象
+  - `data`（object）：以列名为键、新值为值的对象，值可以是普通值（参数化）或 `RawExpression` 实例（直接嵌入）
 - **返回值：** `SQLBuilder`（可链式调用）
+
+#### `update(table, column, rawExpression)`
+
+更新单列的简写形式，使用原始 SQL 表达式。
+
+- **参数：**
+  - `table`（string）：表名
+  - `column`（string）：要更新的列名
+  - `rawExpression`（string）：直接嵌入 SQL 的表达式（如 `"age + 1"`）。**请勿传入用户输入。**
+- **返回值：** `SQLBuilder`（可链式调用）
+
+#### `raw(expression)`
+
+创建一个 `RawExpression`，可作为 `update()` 的值使用。表达式会直接嵌入 `SET` 子句——**不会**被参数化。
+
+- **参数：**
+  - `expression`（string）：非空 SQL 表达式。**请勿传入用户输入。**
+- **返回值：** `RawExpression`
+
+```js
+import { raw } from "sql-builder.js";
+
+sqlBuilder.update("users", { age: raw("age + 1") }).where("id", 1).build();
+// UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
+```
 
 #### `delete([table])`
 
@@ -724,6 +838,14 @@ const sqlBuilder = new SQLBuilder();
   - `fieldNameOrEnabled`（string | boolean，可选）：总记录数的字段名，或 `false` 表示禁用（默认：`"__total_count"`）
 - **返回值：** `SQLBuilder`（可链式调用）
 
+#### `lock(mode)`
+
+为 `SELECT` 查询添加行级锁子句。
+
+- **参数：**
+  - `mode`（`"FOR UPDATE"` | `"FOR SHARE"` | `"LOCK IN SHARE MODE"`）：锁定模式
+- **返回值：** `SQLBuilder`（可链式调用）
+
 ### 工具方法
 
 #### `build()`
@@ -767,9 +889,12 @@ const sqlBuilder = new SQLBuilder();
 
 ### Transaction 类
 
-#### `new Transaction()`
+#### `new Transaction([type])`
 
 创建一个新的 Transaction 实例。
+
+- **参数：**
+  - `type`（`"DEFERRED"` | `"IMMEDIATE"` | `"EXCLUSIVE"`，可选）：控制 `BEGIN` 语句，默认为普通 `BEGIN`。
 
 #### `add(builder)`
 
@@ -926,7 +1051,7 @@ const [rows] = await connection.execute(sql, params);
 该库包含 TypeScript 类型定义：
 
 ```typescript
-import { SQLBuilder } from "sql-builder.js";
+import { SQLBuilder, Transaction, RawExpression, raw } from "sql-builder.js";
 
 const sqlBuilder = new SQLBuilder();
 
@@ -934,6 +1059,12 @@ const result: { sql: string; params: any[] } = sqlBuilder
   .select(["id", "name"])
   .from("users")
   .where("status", "active")
+  .build();
+
+// raw() 具有完整类型支持
+const update = sqlBuilder
+  .update("users", { age: raw("age + 1"), name: "李四" })
+  .where("id", 1)
   .build();
 ```
 
