@@ -728,4 +728,74 @@ describe("SQLBuilder", () => {
 			assert.deepStrictEqual(params, [1, 99.99, 10, 5, 1]);
 		});
 	});
+
+	describe("lock() 方法", () => {
+		it("应该支持 FOR UPDATE 锁", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").where("id", 1).lock("FOR UPDATE").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `id` = ? FOR UPDATE");
+			assert.deepStrictEqual(params, [1]);
+		});
+
+		it("应该支持 FOR SHARE 锁", () => {
+			const { sql, params } = sqlBuilder.select("*").from("accounts").where("id", 2).lock("FOR SHARE").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `accounts` WHERE `id` = ? FOR SHARE");
+			assert.deepStrictEqual(params, [2]);
+		});
+
+		it("应该支持 LOCK IN SHARE MODE 锁", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("orders")
+				.where("status", "pending")
+				.lock("LOCK IN SHARE MODE")
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `orders` WHERE `status` = ? LOCK IN SHARE MODE");
+			assert.deepStrictEqual(params, ["pending"]);
+		});
+
+		it("应该忽略大小写", () => {
+			const { sql } = sqlBuilder.select("*").from("users").where("id", 1).lock("for update").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `id` = ? FOR UPDATE");
+		});
+
+		it("应该拒绝无效的锁定模式", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").lock("INVALID MODE");
+			}, /Invalid lock mode/);
+
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").lock("");
+			}, /Invalid lock mode/);
+
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").lock(null);
+			}, /Invalid lock mode/);
+		});
+
+		it("应该在事务中正确使用 FOR UPDATE 锁", () => {
+			const { sql, params } = new Transaction()
+				.add(new SQLBuilder().select("*").from("users").where("id", 1).lock("FOR UPDATE"))
+				.add(new SQLBuilder().update("users", { name: "Jane" }).where("id", 1))
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"BEGIN;\nSELECT * FROM `users` WHERE `id` = ? FOR UPDATE;\nUPDATE `users` SET `name` = ? WHERE `id` = ?;\nCOMMIT;",
+			);
+			assert.deepStrictEqual(params, [1, "Jane", 1]);
+		});
+
+		it("reset() 应该清除锁定状态", () => {
+			sqlBuilder.select("*").from("users").where("id", 1).lock("FOR UPDATE");
+			sqlBuilder.reset();
+
+			const { sql } = sqlBuilder.select("*").from("users").where("id", 1).build();
+
+			assert.ok(!sql.includes("FOR UPDATE"));
+		});
+	});
 });

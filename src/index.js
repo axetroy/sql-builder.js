@@ -35,6 +35,7 @@ class SQLBuilder {
 		values: {},
 		set: {},
 		withTotal: undefined,
+		lock: null,
 	};
 
 	/**
@@ -207,6 +208,7 @@ class SQLBuilder {
 			values: {},
 			set: {},
 			withTotal: undefined,
+			lock: null,
 		};
 		this.#params = [];
 		return this;
@@ -748,6 +750,35 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 允许的锁定模式白名单
+	 * @private
+	 * @static
+	 * @type {Set<string>}
+	 */
+	static #ALLOWED_LOCK_MODES = new Set(["FOR UPDATE", "FOR SHARE", "LOCK IN SHARE MODE"]);
+
+	/**
+	 * 为 SELECT 查询添加行级锁定子句
+	 * @param {'FOR UPDATE'|'FOR SHARE'|'LOCK IN SHARE MODE'} mode - 锁定模式
+	 * @returns {SQLBuilder}
+	 * @throws {Error} 当锁定模式不合法时抛出错误
+	 * @example
+	 * sql.select('*').from('users').where('id', 1).lock('FOR UPDATE');
+	 * // SELECT * FROM `users` WHERE `id` = ? FOR UPDATE
+	 */
+	lock(mode) {
+		if (typeof mode !== "string") {
+			throw new Error(`Invalid lock mode: ${mode}. Allowed modes: FOR UPDATE, FOR SHARE, LOCK IN SHARE MODE`);
+		}
+		const upperMode = mode.toUpperCase();
+		if (!SQLBuilder.#ALLOWED_LOCK_MODES.has(upperMode)) {
+			throw new Error(`Invalid lock mode: ${mode}. Allowed modes: FOR UPDATE, FOR SHARE, LOCK IN SHARE MODE`);
+		}
+		this.#query.lock = upperMode;
+		return this;
+	}
+
+	/**
 	 * 构建 SQL 查询对象
 	 * @returns {{sql: string, params: any[]}} 包含 SQL 语句和参数的对象
 	 * @throws {Error} 当表名为空或查询类型不支持时抛出错误
@@ -851,6 +882,11 @@ class SQLBuilder {
 
 		if (this.#query.offset !== null) {
 			parts.push(`OFFSET ${this.#query.offset}`);
+		}
+
+		// LOCK 部分
+		if (this.#query.lock !== null) {
+			parts.push(this.#query.lock);
 		}
 
 		return {

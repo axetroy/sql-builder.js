@@ -286,6 +286,18 @@ declare class SQLBuilder {
 	update(table: string, data: Record<string, any>): this;
 
 	/**
+	 * 为 SELECT 查询添加行级锁定子句
+	 * @param mode - 锁定模式
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.select('*').from('users').where('id', 1).lock('FOR UPDATE');
+	 * // SELECT * FROM `users` WHERE `id` = ? FOR UPDATE
+	 * ```
+	 */
+	lock(mode: "FOR UPDATE" | "FOR SHARE" | "LOCK IN SHARE MODE"): this;
+
+	/**
 	 * 构建 DELETE 查询
 	 * @param table - 表名（可选）
 	 * @returns SQLBuilder 实例
