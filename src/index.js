@@ -1,4 +1,38 @@
 /**
+ * 原始 SQL 表达式包装器，用于在 UPDATE 语句中嵌入不参数化的表达式
+ * @class RawExpression
+ * @example
+ * // 创建一个原始 SQL 表达式
+ * const expr = new RawExpression('age + 1');
+ * // 或使用工厂函数
+ * const expr = raw('age + 1');
+ */
+class RawExpression {
+	/**
+	 * @param {string} expression - 原始 SQL 表达式（不会被参数化，请勿传入用户输入）
+	 */
+	constructor(expression) {
+		if (typeof expression !== "string" || expression.length === 0) {
+			throw new Error("Raw expression must be a non-empty string");
+		}
+		this.expression = expression;
+	}
+}
+
+/**
+ * 创建一个原始 SQL 表达式，用于在 UPDATE 语句中嵌入不参数化的列表达式。
+ * 注意：表达式会直接嵌入 SQL，请勿将用户输入传入此函数。
+ * @param {string} expression - 原始 SQL 表达式
+ * @returns {RawExpression}
+ * @example
+ * sqlBuilder.update('users', { age: raw('age + 1') }).where('id', 1);
+ * // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
+ */
+function raw(expression) {
+	return new RawExpression(expression);
+}
+
+/**
  * 安全的 SQL 查询构建器
  * 提供全面的 SQL 注入防护，使用参数化查询和标识符验证
  * @class SQLBuilder
@@ -700,14 +734,23 @@ class SQLBuilder {
 	/**
 	 * 构建 UPDATE 查询
 	 * @param {string} table - 表名
-	 * @param {Object} data - 要更新的数据对象
+	 * @param {Object|string} data - 要更新的数据对象（值可以是普通值或 RawExpression），或者列名（配合第三个参数使用）
+	 * @param {string} [rawExpression] - 原始 SQL 表达式，当第二个参数为列名时使用。
+	 *   注意：表达式会直接嵌入 SQL，请勿传入用户输入。
 	 * @returns {SQLBuilder}
 	 * @throws {Error} 当 data 为空对象时抛出错误
 	 * @example
 	 * sql.update('users', { name: 'Jane', age: 26 }).where('id', 1);
+	 * sql.update('users', 'age', 'age + 1').where('id', 1);
+	 * sql.update('users', { age: raw('age + 1'), updated_at: new Date() }).where('id', 1);
 	 */
-	update(table, data) {
+	update(table, data, rawExpression = undefined) {
 		this.#validateIdentifier(table);
+
+		// Shorthand: update(table, column, rawExpression)
+		if (typeof data === "string" && rawExpression !== undefined) {
+			return this.update(table, { [data]: raw(rawExpression) });
+		}
 
 		if (!data || typeof data !== "object") {
 			throw new Error("Update data cannot be empty");
@@ -718,7 +761,7 @@ class SQLBuilder {
 			throw new Error("Update data cannot be empty");
 		}
 
-		// 转义所有列名
+		// 转义所有列名，区分普通值和原始表达式
 		const escapedData = {};
 		entries.forEach(([key, value]) => {
 			this.#validateIdentifier(key);
@@ -728,7 +771,7 @@ class SQLBuilder {
 		this.#query.type = "UPDATE";
 		this.#query.table = this.#escapeIdentifier(table);
 		this.#query.set = escapedData;
-		this.#params.push(...entries.map(([, value]) => value));
+		this.#params.push(...entries.filter(([, value]) => !(value instanceof RawExpression)).map(([, value]) => value));
 		return this;
 	}
 
@@ -919,7 +962,13 @@ class SQLBuilder {
 	 */
 	#buildUpdate() {
 		const setClauses = Object.keys(this.#query.set)
-			.map((column) => `${column} = ?`)
+			.map((column) => {
+				const value = this.#query.set[column];
+				if (value instanceof RawExpression) {
+					return `${column} = ${value.expression}`;
+				}
+				return `${column} = ?`;
+			})
 			.join(", ");
 
 		const parts = [`UPDATE ${this.#query.table} SET ${setClauses}`];
@@ -1183,5 +1232,5 @@ class Transaction {
 	}
 }
 
-export { SQLBuilder, Transaction };
+export { SQLBuilder, Transaction, RawExpression, raw };
 export default SQLBuilder;

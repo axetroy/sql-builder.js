@@ -57,6 +57,8 @@ console.log(params); // [18]
   - [Sorting and Grouping](#sorting-and-grouping)
   - [Pagination](#pagination)
   - [Pagination with Total Count](#pagination-with-total-count)
+  - [Raw SQL Expressions](#raw-sql-expressions)
+  - [Row-Level Locking](#row-level-locking)
   - [Transactions](#transactions)
 - [Security Features](#security-features)
 - [API Reference](#api-reference)
@@ -137,6 +139,39 @@ const { sql, params } = sqlBuilder
 // UPDATE `users` SET `name` = ?, `age` = ? WHERE `id` = ?
 // params: ['Jane Doe', 26, 1]
 ```
+
+#### Raw SQL Expressions in UPDATE
+
+Use `raw()` to embed a SQL expression directly in a `SET` clause — for example, to increment a column relative to its current value:
+
+```js
+import { SQLBuilder, raw } from "sql-builder.js";
+
+// Shorthand: update(table, column, expression)
+const { sql, params } = sqlBuilder
+  .update("users", "age", "age + 1")
+  .where("id", 1)
+  .build();
+// UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
+// params: [1]
+
+// Object form using raw()
+sqlBuilder
+  .update("users", { age: raw("age + 1") })
+  .where("id", 1)
+  .build();
+// UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
+
+// Mix raw expressions with parameterized values
+sqlBuilder
+  .update("users", { age: raw("age + 1"), name: "Jane" })
+  .where("id", 1)
+  .build();
+// UPDATE `users` SET `age` = age + 1, `name` = ? WHERE `id` = ?
+// params: ['Jane', 1]
+```
+
+> ⚠️ **Security Note**: Raw expressions are embedded verbatim in the SQL string. **Never pass user-supplied input to `raw()`.**
 
 **Safety Note**: UPDATE queries require a WHERE clause to prevent accidental data loss.
 
@@ -431,6 +466,50 @@ sqlBuilder.withTotal();
 sqlBuilder.withTotal("total_rows");
 ```
 
+### Raw SQL Expressions
+
+Use the `raw()` helper to embed a SQL fragment verbatim in an `UPDATE` `SET` clause when you need column-referencing expressions (e.g. `age = age + 1`) that cannot be expressed with parameterized values.
+
+```js
+import { SQLBuilder, raw } from "sql-builder.js";
+
+// Shorthand: update(table, column, expression)
+sqlBuilder.update("users", "views", "views + 1").where("id", 1).build();
+// UPDATE `users` SET `views` = views + 1 WHERE `id` = ?
+
+// Object form
+sqlBuilder.update("users", { score: raw("score * 2") }).where("id", 1).build();
+// UPDATE `users` SET `score` = score * 2 WHERE `id` = ?
+
+// Mixed: raw and parameterized values together
+sqlBuilder
+  .update("users", { age: raw("age + 1"), name: "Jane" })
+  .where("id", 1)
+  .build();
+// UPDATE `users` SET `age` = age + 1, `name` = ? WHERE `id` = ?
+// params: ['Jane', 1]
+```
+
+> ⚠️ **Security Note**: `raw()` expressions are **not** parameterized and are embedded directly in the SQL string. Never pass user-supplied input to `raw()`.
+
+### Row-Level Locking
+
+Add `FOR UPDATE` or `FOR SHARE` to a `SELECT` query to lock the selected rows:
+
+```js
+// Lock rows for update (exclusive lock)
+sqlBuilder.select("*").from("users").where("id", 1).lock("FOR UPDATE").build();
+// SELECT * FROM `users` WHERE `id` = ? FOR UPDATE
+
+// Shared lock
+sqlBuilder.select("*").from("users").where("id", 1).lock("FOR SHARE").build();
+// SELECT * FROM `users` WHERE `id` = ? FOR SHARE
+
+// MySQL-compatible shared lock syntax
+sqlBuilder.select("*").from("users").where("id", 1).lock("LOCK IN SHARE MODE").build();
+// SELECT * FROM `users` WHERE `id` = ? LOCK IN SHARE MODE
+```
+
 ### Transactions
 
 Use the `Transaction` class to wrap multiple queries in a database transaction:
@@ -450,6 +529,16 @@ console.log(sql);
 // COMMIT;
 
 console.log(params); // ["John", "john@example.com", 500, 1]
+```
+
+#### Transaction Isolation Levels
+
+Pass an optional type to `new Transaction()` to control the `BEGIN` statement:
+
+```js
+new Transaction("DEFERRED").add(...).build();  // BEGIN DEFERRED;
+new Transaction("IMMEDIATE").add(...).build(); // BEGIN IMMEDIATE;
+new Transaction("EXCLUSIVE").add(...).build(); // BEGIN EXCLUSIVE;
 ```
 
 #### Using SAVEPOINTs
@@ -569,8 +658,33 @@ Creates an UPDATE query. **Requires a WHERE clause.**
 
 - **Parameters:**
   - `table` (string): Table name
-  - `data` (object): Object with column names as keys and new values
+  - `data` (object): Object with column names as keys and new values. Values may be plain values (parameterized) or `RawExpression` instances (embedded verbatim).
 - **Returns:** `SQLBuilder` (chainable)
+
+#### `update(table, column, rawExpression)`
+
+Shorthand for updating a single column with a raw SQL expression.
+
+- **Parameters:**
+  - `table` (string): Table name
+  - `column` (string): Column name to update
+  - `rawExpression` (string): SQL expression to embed verbatim (e.g. `"age + 1"`). **Do not pass user input.**
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `raw(expression)`
+
+Creates a `RawExpression` that can be used as a value in `update()`. The expression is embedded verbatim in the `SET` clause — it is **not** parameterized.
+
+- **Parameters:**
+  - `expression` (string): A non-empty SQL expression. **Do not pass user input.**
+- **Returns:** `RawExpression`
+
+```js
+import { raw } from "sql-builder.js";
+
+sqlBuilder.update("users", { age: raw("age + 1") }).where("id", 1).build();
+// UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
+```
 
 #### `delete([table])`
 
@@ -724,6 +838,14 @@ Adds a total count column using window functions for pagination.
   - `fieldNameOrEnabled` (string | boolean, optional): Field name for total count or `false` to disable (default: `"__total_count"`)
 - **Returns:** `SQLBuilder` (chainable)
 
+#### `lock(mode)`
+
+Appends a row-level locking clause to a `SELECT` query.
+
+- **Parameters:**
+  - `mode` (`"FOR UPDATE"` | `"FOR SHARE"` | `"LOCK IN SHARE MODE"`): Locking mode
+- **Returns:** `SQLBuilder` (chainable)
+
 ### Utility Methods
 
 #### `build()`
@@ -767,9 +889,12 @@ Returns the current query type.
 
 ### Transaction Class
 
-#### `new Transaction()`
+#### `new Transaction([type])`
 
 Creates a new Transaction instance.
+
+- **Parameters:**
+  - `type` (`"DEFERRED"` | `"IMMEDIATE"` | `"EXCLUSIVE"`, optional): Controls the `BEGIN` statement. Defaults to plain `BEGIN`.
 
 #### `add(builder)`
 
@@ -926,7 +1051,7 @@ See [PERFORMANCE.md](PERFORMANCE.md) for detailed benchmarks.
 The library includes TypeScript type definitions:
 
 ```typescript
-import { SQLBuilder } from "sql-builder.js";
+import { SQLBuilder, Transaction, RawExpression, raw } from "sql-builder.js";
 
 const sqlBuilder = new SQLBuilder();
 
@@ -934,6 +1059,12 @@ const result: { sql: string; params: any[] } = sqlBuilder
   .select(["id", "name"])
   .from("users")
   .where("status", "active")
+  .build();
+
+// raw() is fully typed
+const update = sqlBuilder
+  .update("users", { age: raw("age + 1"), name: "Jane" })
+  .where("id", 1)
   .build();
 ```
 
