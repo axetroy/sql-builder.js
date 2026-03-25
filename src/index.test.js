@@ -727,6 +727,47 @@ describe("SQLBuilder", () => {
 
 			assert.deepStrictEqual(params, [1, 99.99, 10, 5, 1]);
 		});
+
+		it("应该支持 BEGIN DEFERRED", () => {
+			const { sql, params } = new Transaction("DEFERRED")
+				.add(new SQLBuilder().insert("users", { name: "John" }))
+				.build();
+
+			assert.strictEqual(sql, "BEGIN DEFERRED;\nINSERT INTO `users` (`name`) VALUES (?);\nCOMMIT;");
+			assert.deepStrictEqual(params, ["John"]);
+		});
+
+		it("应该支持 BEGIN IMMEDIATE", () => {
+			const { sql, params } = new Transaction("IMMEDIATE")
+				.add(new SQLBuilder().insert("users", { name: "John" }))
+				.build();
+
+			assert.strictEqual(sql, "BEGIN IMMEDIATE;\nINSERT INTO `users` (`name`) VALUES (?);\nCOMMIT;");
+			assert.deepStrictEqual(params, ["John"]);
+		});
+
+		it("应该支持 BEGIN EXCLUSIVE", () => {
+			const { sql, params } = new Transaction("EXCLUSIVE")
+				.add(new SQLBuilder().insert("users", { name: "John" }))
+				.build();
+
+			assert.strictEqual(sql, "BEGIN EXCLUSIVE;\nINSERT INTO `users` (`name`) VALUES (?);\nCOMMIT;");
+			assert.deepStrictEqual(params, ["John"]);
+		});
+
+		it("应该验证 Transaction 构造函数的 type 参数合法性", () => {
+			assert.throws(() => {
+				new Transaction("INVALID");
+			}, /Invalid transaction type/);
+
+			assert.throws(() => {
+				new Transaction("begin");
+			}, /Invalid transaction type/);
+
+			assert.throws(() => {
+				new Transaction(123);
+			}, /Invalid transaction type/);
+		});
 	});
 
 	describe("lock() 方法", () => {
