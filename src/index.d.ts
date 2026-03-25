@@ -384,8 +384,16 @@ interface TransactionResult {
 declare class Transaction {
 	/**
 	 * 创建 Transaction 实例
+	 * @param type - 事务类型，可选值为 DEFERRED、IMMEDIATE、EXCLUSIVE
+	 * @throws 当类型不合法时抛出错误
+	 * @example
+	 * ```typescript
+	 * new Transaction('DEFERRED');
+	 * new Transaction('IMMEDIATE');
+	 * new Transaction('EXCLUSIVE');
+	 * ```
 	 */
-	constructor();
+	constructor(type?: "DEFERRED" | "IMMEDIATE" | "EXCLUSIVE");
 
 	/**
 	 * 添加一个 SQLBuilder 查询到事务中

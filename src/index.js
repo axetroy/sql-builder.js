@@ -1043,10 +1043,45 @@ class Transaction {
 	static #SAVEPOINT_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 	/**
+	 * Valid BEGIN transaction types
+	 * @private
+	 * @static
+	 */
+	static #VALID_TYPES = ["DEFERRED", "IMMEDIATE", "EXCLUSIVE"];
+
+	/**
+	 * @private
+	 * @type {string|null}
+	 */
+	#beginType = null;
+
+	/**
 	 * @private
 	 * @type {Array<{type: string, builder?: SQLBuilder, name?: string}>}
 	 */
 	#statements = [];
+
+	/**
+	 * 创建 Transaction 实例
+	 * @param {string} [type] - 事务类型，可选值为 DEFERRED、IMMEDIATE、EXCLUSIVE
+	 * @throws {Error} 当类型不合法时抛出错误
+	 * @example
+	 * new Transaction('DEFERRED');
+	 * new Transaction('IMMEDIATE');
+	 * new Transaction('EXCLUSIVE');
+	 */
+	constructor(type) {
+		if (type !== undefined) {
+			if (typeof type !== "string") {
+				throw new Error(`Invalid transaction type: ${type}. Must be one of: ${Transaction.#VALID_TYPES.join(", ")}`);
+			}
+			const upperType = type.toUpperCase();
+			if (!Transaction.#VALID_TYPES.includes(upperType)) {
+				throw new Error(`Invalid transaction type: ${type}. Must be one of: ${Transaction.#VALID_TYPES.join(", ")}`);
+			}
+			this.#beginType = upperType;
+		}
+	}
 
 	/**
 	 * 验证 SAVEPOINT 名称是否合法
@@ -1122,7 +1157,7 @@ class Transaction {
 	 * const { sql, params } = transaction.build();
 	 */
 	build() {
-		const parts = ["BEGIN"];
+		const parts = [this.#beginType ? `BEGIN ${this.#beginType}` : "BEGIN"];
 		const params = [];
 
 		for (const stmt of this.#statements) {
