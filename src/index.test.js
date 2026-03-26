@@ -186,6 +186,16 @@ describe("SQLBuilder", () => {
 			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `role` NOT IN (?, ?)");
 			assert.deepStrictEqual(params, ["admin", "superuser"]);
 		});
+
+		it("应该验证数组参数", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").whereNotIn("role", "not-an-array");
+			}, /whereNotIn requires a non-empty array/);
+
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").whereNotIn("role", []);
+			}, /whereNotIn requires a non-empty array/);
+		});
 	});
 
 	describe("whereLike() 方法", () => {
