@@ -151,6 +151,161 @@ describe("SQLBuilder", () => {
 		});
 	});
 
+	describe("WHERE 分组（括号嵌套）", () => {
+		it("应该支持 AND 分组条件", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.where("age", ">", 18)
+				.where((q) => q.where("status", "active").orWhere("status", "pending"))
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `age` > ? AND (`status` = ? OR `status` = ?)");
+			assert.deepStrictEqual(params, [18, "active", "pending"]);
+		});
+
+		it("应该支持 OR 分组条件", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.where("type", "vip")
+				.orWhere((q) => q.where("age", ">", 60).where("member", true))
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `type` = ? OR (`age` > ? AND `member` = ?)");
+			assert.deepStrictEqual(params, ["vip", 60, true]);
+		});
+
+		it("应该支持仅有一个分组条件（无前置普通条件）", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.where((q) => q.where("status", "active").orWhere("status", "pending"))
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE (`status` = ? OR `status` = ?)");
+			assert.deepStrictEqual(params, ["active", "pending"]);
+		});
+
+		it("应该支持多个分组条件", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.where((q) => q.where("role", "admin").orWhere("role", "moderator"))
+				.where((q) => q.where("status", "active").orWhere("status", "pending"))
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"SELECT * FROM `users` WHERE (`role` = ? OR `role` = ?) AND (`status` = ? OR `status` = ?)",
+			);
+			assert.deepStrictEqual(params, ["admin", "moderator", "active", "pending"]);
+		});
+
+		it("应该支持分组内使用 whereIn", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.where("age", ">", 18)
+				.where((q) => q.whereIn("status", ["active", "pending"]).orWhere("role", "admin"))
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `age` > ? AND (`status` IN (?, ?) OR `role` = ?)");
+			assert.deepStrictEqual(params, [18, "active", "pending", "admin"]);
+		});
+
+		it("应该支持分组内使用 whereNull / whereNotNull", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.where((q) => q.whereNull("deleted_at").orWhere("status", "active"))
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE (`deleted_at` IS NULL OR `status` = ?)");
+			assert.deepStrictEqual(params, ["active"]);
+		});
+
+		it("应该支持分组内使用 whereBetween", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.where("type", "regular")
+				.orWhere((q) => q.whereBetween("age", 18, 25).where("status", "active"))
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `type` = ? OR (`age` BETWEEN ? AND ? AND `status` = ?)");
+			assert.deepStrictEqual(params, ["regular", 18, 25, "active"]);
+		});
+
+		it("应该支持嵌套分组（分组内再分组）", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.where("verified", true)
+				.where((q) =>
+					q
+						.where("role", "admin")
+						.orWhere((inner) => inner.where("role", "moderator").where("status", "active")),
+				)
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"SELECT * FROM `users` WHERE `verified` = ? AND (`role` = ? OR (`role` = ? AND `status` = ?))",
+			);
+			assert.deepStrictEqual(params, [true, "admin", "moderator", "active"]);
+		});
+
+		it("分组条件应该与 UPDATE 查询兼容", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set({ status: "inactive" })
+				.where("id", 1)
+				.where((q) => q.where("role", "guest").orWhere("verified", false))
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `status` = ? WHERE `id` = ? AND (`role` = ? OR `verified` = ?)");
+			assert.deepStrictEqual(params, ["inactive", 1, "guest", false]);
+		});
+
+		it("分组条件应该与 DELETE 查询兼容", () => {
+			const { sql, params } = sqlBuilder
+				.delete("users")
+				.where("expired", true)
+				.where((q) => q.where("status", "inactive").orWhere("status", "banned"))
+				.build();
+
+			assert.strictEqual(sql, "DELETE FROM `users` WHERE `expired` = ? AND (`status` = ? OR `status` = ?)");
+			assert.deepStrictEqual(params, [true, "inactive", "banned"]);
+		});
+
+		it("分组条件中的标识符应受白名单约束", () => {
+			sqlBuilder.setAllowedIdentifiers(["users", "status", "role"]);
+
+			assert.throws(() => {
+				sqlBuilder
+					.select("*")
+					.from("users")
+					.where((q) => q.where("unknown_col", "value"))
+					.build();
+			}, /Identifier not in whitelist/);
+		});
+
+		it("空分组回调应被忽略，不影响其他 WHERE 条件", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.where("age", ">", 18)
+				.where((q) => {
+					// 空回调，不添加任何条件
+				})
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `age` > ?");
+			assert.deepStrictEqual(params, [18]);
+		});
+	});
+
 	describe("orWhere() 方法", () => {
 		it("应该添加 OR WHERE 条件", () => {
 			const { sql, params } = sqlBuilder.select("*").from("users").where("status", "active").orWhere("status", "pending").build();
