@@ -418,6 +418,50 @@ describe("SQLBuilder", () => {
 		});
 	});
 
+	describe("rightJoin() 方法", () => {
+		it("应该添加 RIGHT JOIN", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").rightJoin("profiles", "users.id", "=", "profiles.user_id").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` RIGHT JOIN `profiles` ON `users`.`id` = `profiles`.`user_id`");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该支持表别名", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users u").rightJoin("profiles p", "u.id", "=", "p.user_id").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` `u` RIGHT JOIN `profiles` `p` ON `u`.`id` = `p`.`user_id`");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该拒绝危险的 RIGHT JOIN 条件", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").rightJoin("profiles;", "users.id", "=", "profiles.user_id").build();
+			}, /Potential SQL injection detected in identifier/);
+		});
+	});
+
+	describe("crossJoin() 方法", () => {
+		it("应该添加 CROSS JOIN（无 ON 条件）", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").crossJoin("products").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` CROSS JOIN `products`");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该支持表别名", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").crossJoin("products p").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` CROSS JOIN `products` `p`");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该拒绝危险的 CROSS JOIN 表名", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").crossJoin("products;").build();
+			}, /Potential SQL injection detected in identifier/);
+		});
+	});
+
 	describe("orderBy() 方法", () => {
 		it("应该添加排序条件", () => {
 			const { sql, params } = sqlBuilder.select("*").from("users").orderBy("created_at", "DESC").build();
