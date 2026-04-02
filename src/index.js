@@ -632,6 +632,70 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 添加 RIGHT JOIN 连接
+	 * @param {string} table - 要连接的表名，可以包含别名
+	 * @param {string} first - 第一个连接条件列
+	 * @param {string} operator - 操作符
+	 * @param {string} second - 第二个连接条件列
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.rightJoin('profiles', 'users.id', '=', 'profiles.user_id');
+	 * sql.rightJoin('profiles p', 'users.id', '=', 'p.user_id'); // 使用表别名
+	 */
+	rightJoin(table, first, operator, second) {
+		const { table: tableName, alias } = this.#parseTableAndAlias(table.replace(/ AS /i, " "));
+
+		this.#validateIdentifier(tableName);
+		if (alias) {
+			this.#validateIdentifier(alias);
+		}
+		this.#validateIdentifier(first);
+		this.#validateIdentifier(second);
+		this.#validateOperator(operator);
+
+		const escapedTable = this.#escapeIdentifier(tableName);
+		const joinedTable = alias ? `${escapedTable} ${this.#escapeIdentifier(alias)}` : escapedTable;
+
+		this.#query.joins.push({
+			type: "RIGHT",
+			table: joinedTable,
+			condition: {
+				first: this.#escapeIdentifier(first),
+				operator,
+				second: this.#escapeIdentifier(second),
+			},
+		});
+		return this;
+	}
+
+	/**
+	 * 添加 CROSS JOIN 连接
+	 * @param {string} table - 要连接的表名，可以包含别名
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.crossJoin('products');
+	 * sql.crossJoin('products p'); // 使用表别名
+	 */
+	crossJoin(table) {
+		const { table: tableName, alias } = this.#parseTableAndAlias(table.replace(/ AS /i, " "));
+
+		this.#validateIdentifier(tableName);
+		if (alias) {
+			this.#validateIdentifier(alias);
+		}
+
+		const escapedTable = this.#escapeIdentifier(tableName);
+		const joinedTable = alias ? `${escapedTable} ${this.#escapeIdentifier(alias)}` : escapedTable;
+
+		this.#query.joins.push({
+			type: "CROSS",
+			table: joinedTable,
+			condition: null,
+		});
+		return this;
+	}
+
+	/**
 	 * 添加排序条件
 	 * @param {string} column - 排序列名，可以使用表别名
 	 * @param {'ASC'|'DESC'} direction - 排序方向
@@ -964,9 +1028,13 @@ class SQLBuilder {
 		// JOIN 部分
 		if (this.#query.joins.length > 0) {
 			this.#query.joins.forEach((join) => {
-				parts.push(
-					`${join.type} JOIN ${join.table} ON ${join.condition.first} ${join.condition.operator} ${join.condition.second}`,
-				);
+				if (join.condition) {
+					parts.push(
+						`${join.type} JOIN ${join.table} ON ${join.condition.first} ${join.condition.operator} ${join.condition.second}`,
+					);
+				} else {
+					parts.push(`${join.type} JOIN ${join.table}`);
+				}
 			});
 		}
 
