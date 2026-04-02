@@ -633,26 +633,41 @@ class SQLBuilder {
 
 	/**
 	 * 添加排序条件
-	 * @param {string} column - 排序列名，可以使用表别名
-	 * @param {'ASC'|'DESC'} direction - 排序方向
+	 * @param {string|Array<[string, 'ASC'|'DESC']>} column - 排序列名或多列排序数组，可以使用表别名
+	 * @param {'ASC'|'DESC'} direction - 排序方向（单列时有效，默认 'ASC'）
 	 * @returns {SQLBuilder}
 	 * @example
 	 * sql.orderBy('created_at', 'DESC');
 	 * sql.orderBy('name', 'ASC');
 	 * sql.orderBy('u.created_at', 'DESC'); // 使用表别名
+	 * sql.orderBy([['status', 'ASC'], ['created_at', 'DESC']]); // 多列排序，每列方向独立指定
 	 */
 	orderBy(column, direction = "ASC") {
-		this.#validateIdentifier(column);
+		if (Array.isArray(column)) {
+			for (const [col, dir = "ASC"] of column) {
+				this.#validateIdentifier(col);
+				const upperDir = dir.toUpperCase();
+				if (!["ASC", "DESC"].includes(upperDir)) {
+					throw new Error("Order direction must be ASC or DESC");
+				}
+				this.#query.orderBy.push({
+					column: this.#escapeIdentifier(col),
+					direction: upperDir,
+				});
+			}
+		} else {
+			this.#validateIdentifier(column);
 
-		const upperDirection = direction.toUpperCase();
-		if (!["ASC", "DESC"].includes(upperDirection)) {
-			throw new Error("Order direction must be ASC or DESC");
+			const upperDirection = direction.toUpperCase();
+			if (!["ASC", "DESC"].includes(upperDirection)) {
+				throw new Error("Order direction must be ASC or DESC");
+			}
+
+			this.#query.orderBy.push({
+				column: this.#escapeIdentifier(column),
+				direction: upperDirection,
+			});
 		}
-
-		this.#query.orderBy.push({
-			column: this.#escapeIdentifier(column),
-			direction: upperDirection,
-		});
 		return this;
 	}
 

@@ -362,12 +362,20 @@ const { sql, params } = sqlBuilder
   .build();
 // SELECT * FROM `users` ORDER BY `created_at` DESC
 
-// 多列排序
+// 多列排序（链式调用）
 const result = sqlBuilder
   .select("*")
   .from("users")
   .orderBy("status", "ASC")
   .orderBy("created_at", "DESC")
+  .build();
+// SELECT * FROM `users` ORDER BY `status` ASC, `created_at` DESC
+
+// 多列排序（数组形式）
+const result2 = sqlBuilder
+  .select("*")
+  .from("users")
+  .orderBy([["status", "ASC"], ["created_at", "DESC"]])
   .build();
 // SELECT * FROM `users` ORDER BY `status` ASC, `created_at` DESC
 ```
@@ -795,13 +803,14 @@ sqlBuilder.update("users", { age: raw("age + 1") }).where("id", 1).build();
 
 ### 排序与分组方法
 
-#### `orderBy(column, [direction])`
+#### `orderBy(column, [direction])` / `orderBy(columns)`
 
 添加 ORDER BY 子句。
 
 - **参数：**
-  - `column`（string）：列名
-  - `direction`（string，可选）：排序方向 - `"ASC"` 或 `"DESC"`（默认：`"ASC"`）
+  - `column`（string）：列名，或
+  - `columns`（Array<[string, string]>）：`[列名, 排序方向]` 对数组，用于多列排序
+  - `direction`（string，可选）：排序方向 - `"ASC"` 或 `"DESC"`（默认：`"ASC"`，仅单列形式有效）
 - **返回值：** `SQLBuilder`（可链式调用）
 
 #### `groupBy(columns)`

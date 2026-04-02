@@ -431,6 +431,42 @@ describe("SQLBuilder", () => {
 				sqlBuilder.select("*").from("users").orderBy("created_at", "INVALID").build();
 			}, /Order direction must be ASC or DESC/);
 		});
+
+		it("应该支持多列排序（链式调用）", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.orderBy("status", "ASC")
+				.orderBy("created_at", "DESC")
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` ORDER BY `status` ASC, `created_at` DESC");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该支持多列排序（数组形式）", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.orderBy([
+					["status", "ASC"],
+					["created_at", "DESC"],
+				])
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` ORDER BY `status` ASC, `created_at` DESC");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该验证数组形式多列排序的方向", () => {
+			assert.throws(() => {
+				sqlBuilder
+					.select("*")
+					.from("users")
+					.orderBy([["created_at", "INVALID"]])
+					.build();
+			}, /Order direction must be ASC or DESC/);
+		});
 	});
 
 	describe("groupBy() 方法", () => {

@@ -262,16 +262,18 @@ declare class SQLBuilder {
 
 	/**
 	 * 添加排序条件
-	 * @param column - 排序列名
-	 * @param direction - 排序方向，默认为 'ASC'
+	 * @param column - 排序列名，或多列排序数组 `[column, direction][]`
+	 * @param direction - 排序方向，默认为 'ASC'（单列时有效）
 	 * @returns SQLBuilder 实例
 	 * @example
 	 * ```typescript
 	 * sql.orderBy('created_at', 'DESC');
 	 * sql.orderBy('name', 'ASC');
+	 * sql.orderBy([['status', 'ASC'], ['created_at', 'DESC']]); // 多列排序
 	 * ```
 	 */
 	orderBy(column: string, direction?: "ASC" | "DESC"): this;
+	orderBy(columns: Array<[string, "ASC" | "DESC"]>): this;
 
 	/**
 	 * 添加分组条件

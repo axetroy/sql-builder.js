@@ -366,12 +366,20 @@ const { sql, params } = sqlBuilder
   .build();
 // SELECT * FROM `users` ORDER BY `created_at` DESC
 
-// Multiple columns sorting
+// Multiple columns sorting (chaining)
 const result = sqlBuilder
   .select("*")
   .from("users")
   .orderBy("status", "ASC")
   .orderBy("created_at", "DESC")
+  .build();
+// SELECT * FROM `users` ORDER BY `status` ASC, `created_at` DESC
+
+// Multiple columns sorting (array form)
+const result2 = sqlBuilder
+  .select("*")
+  .from("users")
+  .orderBy([["status", "ASC"], ["created_at", "DESC"]])
   .build();
 // SELECT * FROM `users` ORDER BY `status` ASC, `created_at` DESC
 ```
@@ -806,13 +814,14 @@ Adds a WHERE IS NOT NULL condition.
 
 ### Sorting and Grouping Methods
 
-#### `orderBy(column, [direction])`
+#### `orderBy(column, [direction])` / `orderBy(columns)`
 
 Adds an ORDER BY clause.
 
 - **Parameters:**
-  - `column` (string): Column name
-  - `direction` (string, optional): Sort direction - `"ASC"` or `"DESC"` (default: `"ASC"`)
+  - `column` (string): Column name, or
+  - `columns` (Array<[string, string]>): Array of `[column, direction]` pairs for multi-column sorting
+  - `direction` (string, optional): Sort direction - `"ASC"` or `"DESC"` (default: `"ASC"`, used with single-column form)
 - **Returns:** `SQLBuilder` (chainable)
 
 #### `groupBy(columns)`
