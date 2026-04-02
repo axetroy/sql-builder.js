@@ -71,6 +71,7 @@ class SQLBuilder {
 		upsertUpdate: null,
 		withTotal: undefined,
 		lock: null,
+		returning: null,
 	};
 
 	/**
@@ -245,6 +246,7 @@ class SQLBuilder {
 			upsertUpdate: null,
 			withTotal: undefined,
 			lock: null,
+			returning: null,
 		};
 		this.#params = [];
 		return this;
@@ -1147,6 +1149,31 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 为 INSERT/UPDATE/DELETE 查询添加 RETURNING 子句，指定返回的列
+	 * @param {...string} columns - 要返回的列名，传入 '*' 返回所有列
+	 * @returns {SQLBuilder}
+	 * @throws {Error} 当列名格式非法时抛出错误
+	 * @example
+	 * sql.insert('users', { name: 'John' }).returning('id', 'name');
+	 * // INSERT INTO `users` (`name`) VALUES (?) RETURNING `id`, `name`
+	 * sql.update('users').set({ name: 'Jane' }).where('id', 1).returning('*');
+	 * // UPDATE `users` SET `name` = ? WHERE `id` = ? RETURNING *
+	 * sql.delete('users').where('id', 1).returning('id');
+	 * // DELETE FROM `users` WHERE `id` = ? RETURNING `id`
+	 */
+	returning(...columns) {
+		if (columns.length === 0) {
+			throw new Error("RETURNING clause requires at least one column");
+		}
+		this.#query.returning = columns.map((col) => {
+			if (col === "*") return "*";
+			this.#validateIdentifier(col);
+			return this.#escapeIdentifier(col);
+		});
+		return this;
+	}
+
+	/**
 	 * 允许的锁定模式白名单
 	 * @private
 	 * @static
@@ -1248,6 +1275,16 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 构建 RETURNING 子句字符串（不含前缀空格）
+	 * @private
+	 * @returns {string|null} RETURNING 子句字符串，若无 RETURNING 则返回 null
+	 */
+	#buildReturningClause() {
+		if (!this.#query.returning) return null;
+		return `RETURNING ${this.#query.returning.join(", ")}`;
+	}
+
+	/**
 	 * 构建 SELECT 查询
 	 * @private
 	 * @returns {{sql: string, params: any[]}}
@@ -1324,10 +1361,13 @@ class SQLBuilder {
 		const columns = Object.keys(this.#query.values);
 		const placeholders = this.#buildPlaceholders(columns.length);
 
-		const sql = `INSERT INTO ${this.#query.table} (${columns.join(", ")}) VALUES (${placeholders})`;
+		const parts = [`INSERT INTO ${this.#query.table} (${columns.join(", ")}) VALUES (${placeholders})`];
+
+		const returning = this.#buildReturningClause();
+		if (returning) parts.push(returning);
 
 		return {
-			sql,
+			sql: parts.join(" "),
 			params: this.#params,
 		};
 	}
@@ -1397,6 +1437,10 @@ class SQLBuilder {
 			parts.push(`WHERE ${this.#buildWhereConditions(this.#query.where)}`);
 		}
 
+		// RETURNING 部分
+		const returning = this.#buildReturningClause();
+		if (returning) parts.push(returning);
+
 		return {
 			sql: parts.join(" "),
 			params: this.#params,
@@ -1415,6 +1459,10 @@ class SQLBuilder {
 		if (this.#query.where.length > 0) {
 			parts.push(`WHERE ${this.#buildWhereConditions(this.#query.where)}`);
 		}
+
+		// RETURNING 部分
+		const returning = this.#buildReturningClause();
+		if (returning) parts.push(returning);
 
 		return {
 			sql: parts.join(" "),
