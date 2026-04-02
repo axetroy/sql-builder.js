@@ -261,6 +261,31 @@ declare class SQLBuilder {
 	leftJoin(table: string, first: string, operator: string, second: string): this;
 
 	/**
+	 * 添加 RIGHT JOIN 连接
+	 * @param table - 要连接的表名
+	 * @param first - 第一个连接条件列
+	 * @param operator - 操作符
+	 * @param second - 第二个连接条件列
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.rightJoin('profiles', 'users.id', '=', 'profiles.user_id');
+	 * ```
+	 */
+	rightJoin(table: string, first: string, operator: string, second: string): this;
+
+	/**
+	 * 添加 CROSS JOIN 连接
+	 * @param table - 要连接的表名
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.crossJoin('products');
+	 * ```
+	 */
+	crossJoin(table: string): this;
+
+	/**
 	 * 添加排序条件
 	 * @param column - 排序列名
 	 * @param direction - 排序方向，默认为 'ASC'
