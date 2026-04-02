@@ -509,6 +509,36 @@ declare class SQLBuilder {
 	lock(mode: "FOR UPDATE" | "FOR SHARE" | "LOCK IN SHARE MODE"): this;
 
 	/**
+	 * 添加 UNION 子句，合并另一个 SELECT 查询的结果（去重）
+	 * @param builder - 另一个 SQLBuilder 实例
+	 * @returns SQLBuilder 实例
+	 * @throws 当 builder 不是 SQLBuilder 实例时抛出错误
+	 * @example
+	 * ```typescript
+	 * sql.select('id', 'name').from('users').union(
+	 *   new SQLBuilder().select('id', 'name').from('admins')
+	 * );
+	 * // SELECT `id`, `name` FROM `users` UNION SELECT `id`, `name` FROM `admins`
+	 * ```
+	 */
+	union(builder: SQLBuilder): this;
+
+	/**
+	 * 添加 UNION ALL 子句，合并另一个 SELECT 查询的结果（保留重复行）
+	 * @param builder - 另一个 SQLBuilder 实例
+	 * @returns SQLBuilder 实例
+	 * @throws 当 builder 不是 SQLBuilder 实例时抛出错误
+	 * @example
+	 * ```typescript
+	 * sql.select('id', 'name').from('users').unionAll(
+	 *   new SQLBuilder().select('id', 'name').from('admins')
+	 * );
+	 * // SELECT `id`, `name` FROM `users` UNION ALL SELECT `id`, `name` FROM `admins`
+	 * ```
+	 */
+	unionAll(builder: SQLBuilder): this;
+
+	/**
 	 * 为 INSERT/UPDATE/DELETE 查询添加 RETURNING 子句，指定返回的列
 	 * @param columns - 要返回的列名，传入 '*' 返回所有列
 	 * @returns SQLBuilder 实例
