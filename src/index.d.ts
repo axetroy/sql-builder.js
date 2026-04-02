@@ -233,6 +233,80 @@ declare class SQLBuilder {
 	whereNotNull(column: string): this;
 
 	/**
+	 * 添加 OR WHERE IN 条件
+	 * @param column - 列名
+	 * @param values - 值数组
+	 * @returns SQLBuilder 实例
+	 * @throws 当 values 不是数组或为空时抛出错误
+	 * @example
+	 * ```typescript
+	 * sql.where('type', 'vip').orWhereIn('status', ['active', 'pending']);
+	 * ```
+	 */
+	orWhereIn(column: string, values: any[]): this;
+
+	/**
+	 * 添加 OR WHERE NOT IN 条件
+	 * @param column - 列名
+	 * @param values - 值数组
+	 * @returns SQLBuilder 实例
+	 * @throws 当 values 不是数组或为空时抛出错误
+	 * @example
+	 * ```typescript
+	 * sql.where('type', 'vip').orWhereNotIn('role', ['admin', 'superuser']);
+	 * ```
+	 */
+	orWhereNotIn(column: string, values: any[]): this;
+
+	/**
+	 * 添加 OR LIKE 条件
+	 * @param column - 列名
+	 * @param value - 搜索值
+	 * @param wildcard - 是否自动添加 % 通配符，默认为 true
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.whereLike('name', 'John').orWhereLike('name', 'Jane');
+	 * ```
+	 */
+	orWhereLike(column: string, value: string, wildcard?: boolean): this;
+
+	/**
+	 * 添加 OR BETWEEN 条件
+	 * @param column - 列名
+	 * @param start - 范围开始值
+	 * @param end - 范围结束值
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.whereBetween('age', 0, 17).orWhereBetween('age', 66, 100);
+	 * ```
+	 */
+	orWhereBetween(column: string, start: any, end: any): this;
+
+	/**
+	 * 添加 OR IS NULL 条件
+	 * @param column - 列名
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.whereNull('deleted_at').orWhereNull('archived_at');
+	 * ```
+	 */
+	orWhereNull(column: string): this;
+
+	/**
+	 * 添加 OR IS NOT NULL 条件
+	 * @param column - 列名
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.whereNotNull('email').orWhereNotNull('phone');
+	 * ```
+	 */
+	orWhereNotNull(column: string): this;
+
+	/**
 	 * 添加 INNER JOIN 连接
 	 * @param table - 要连接的表名
 	 * @param first - 第一个连接条件列

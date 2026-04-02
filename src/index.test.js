@@ -394,6 +394,85 @@ describe("SQLBuilder", () => {
 		});
 	});
 
+	describe("orWhereIn() 方法", () => {
+		it("应该添加 OR WHERE IN 条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").where("type", "vip").orWhereIn("status", ["active", "pending"]).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `type` = ? OR `status` IN (?, ?)");
+			assert.deepStrictEqual(params, ["vip", "active", "pending"]);
+		});
+
+		it("应该验证数组参数", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").orWhereIn("status", "not-an-array");
+			}, /orWhereIn requires a non-empty array/);
+
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").orWhereIn("status", []);
+			}, /orWhereIn requires a non-empty array/);
+		});
+	});
+
+	describe("orWhereNotIn() 方法", () => {
+		it("应该添加 OR WHERE NOT IN 条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").where("type", "vip").orWhereNotIn("role", ["admin", "superuser"]).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `type` = ? OR `role` NOT IN (?, ?)");
+			assert.deepStrictEqual(params, ["vip", "admin", "superuser"]);
+		});
+
+		it("应该验证数组参数", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").orWhereNotIn("role", "not-an-array");
+			}, /orWhereNotIn requires a non-empty array/);
+
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").orWhereNotIn("role", []);
+			}, /orWhereNotIn requires a non-empty array/);
+		});
+	});
+
+	describe("orWhereLike() 方法", () => {
+		it("应该添加 OR LIKE 条件并自动添加通配符", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereLike("name", "John").orWhereLike("name", "Jane").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` LIKE ? OR `name` LIKE ?");
+			assert.deepStrictEqual(params, ["%John%", "%Jane%"]);
+		});
+
+		it("应该支持禁用通配符", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereLike("email", "@example.com", false).orWhereLike("email", "@test.com", false).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `email` LIKE ? OR `email` LIKE ?");
+			assert.deepStrictEqual(params, ["@example.com", "@test.com"]);
+		});
+	});
+
+	describe("orWhereBetween() 方法", () => {
+		it("应该添加 OR BETWEEN 条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereBetween("age", 0, 17).orWhereBetween("age", 66, 100).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `age` BETWEEN ? AND ? OR `age` BETWEEN ? AND ?");
+			assert.deepStrictEqual(params, [0, 17, 66, 100]);
+		});
+	});
+
+	describe("orWhereNull() 和 orWhereNotNull() 方法", () => {
+		it("应该添加 OR IS NULL 条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereNull("deleted_at").orWhereNull("archived_at").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `deleted_at` IS NULL OR `archived_at` IS NULL");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该添加 OR IS NOT NULL 条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereNotNull("email").orWhereNotNull("phone").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `email` IS NOT NULL OR `phone` IS NOT NULL");
+			assert.deepStrictEqual(params, []);
+		});
+	});
+
 	describe("join() 方法", () => {
 		it("应该添加 INNER JOIN", () => {
 			const { sql, params } = sqlBuilder.select("*").from("users").join("posts", "users.id", "=", "posts.user_id").build();
