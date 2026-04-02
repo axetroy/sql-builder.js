@@ -51,6 +51,7 @@ console.log(params); // [18]
   - [INSERT Queries](#insert-queries)
   - [UPDATE Queries](#update-queries)
   - [DELETE Queries](#delete-queries)
+  - [UPSERT Queries](#upsert-queries)
 - [Advanced Features](#advanced-features)
   - [WHERE Conditions](#where-conditions)
   - [JOIN Operations](#join-operations)
@@ -192,6 +193,61 @@ const { sql, params } = sqlBuilder
 ```
 
 **Safety Note**: DELETE queries require a WHERE clause to prevent accidental data loss.
+
+### UPSERT Queries
+
+UPSERT inserts a row if it does not exist, or updates it if a duplicate key is found (`INSERT ... ON DUPLICATE KEY UPDATE`).
+
+#### Update All Inserted Columns on Conflict
+
+```js
+const { sql, params } = sqlBuilder
+  .upsert("users", {
+    name: "John Doe",
+    email: "john@example.com",
+    age: 25
+  })
+  .build();
+// INSERT INTO `users` (`name`, `email`, `age`) VALUES (?, ?, ?)
+// ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `email` = VALUES(`email`), `age` = VALUES(`age`)
+// params: ['John Doe', 'john@example.com', 25]
+```
+
+#### Update Only Specific Columns on Conflict
+
+Pass an array of column names as the third argument to update only those columns using `VALUES(col)`:
+
+```js
+const { sql, params } = sqlBuilder
+  .upsert(
+    "users",
+    { name: "John Doe", email: "john@example.com", age: 25 },
+    ["name", "age"]
+  )
+  .build();
+// INSERT INTO `users` (`name`, `email`, `age`) VALUES (?, ?, ?)
+// ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `age` = VALUES(`age`)
+// params: ['John Doe', 'john@example.com', 25]
+```
+
+#### Explicit Update Values on Conflict
+
+Pass an object as the third argument to specify explicit update values. Supports `raw()` expressions:
+
+```js
+const { sql, params } = sqlBuilder
+  .upsert(
+    "users",
+    { name: "John Doe", email: "john@example.com", views: 1 },
+    { name: "John Doe", views: raw("views + 1") }
+  )
+  .build();
+// INSERT INTO `users` (`name`, `email`, `views`) VALUES (?, ?, ?)
+// ON DUPLICATE KEY UPDATE `name` = ?, `views` = views + 1
+// params: ['John Doe', 'john@example.com', 1, 'John Doe']
+```
+
+> ⚠️ **Security Note**: Raw expressions in update data are embedded verbatim in the SQL. Never pass user-supplied input to `raw()`.
 
 ## Advanced Features
 
@@ -705,6 +761,20 @@ Creates a DELETE query. **Requires a WHERE clause.**
   - `table` (string, optional): Table name
 - **Returns:** `SQLBuilder` (chainable)
 
+#### `upsert(table, insertData, [updateData])`
+
+Creates an UPSERT query (`INSERT ... ON DUPLICATE KEY UPDATE`).
+
+- **Parameters:**
+  - `table` (string): Table name
+  - `insertData` (object): Object with column names as keys and values to insert
+  - `updateData` (string[] | object, optional): Columns to update on conflict.  
+    - If a **string array**, those columns are updated using `VALUES(col)` to reference the inserted value.  
+    - If an **object**, the specified values are used (supports `RawExpression` via `raw()`).  
+    - If **omitted**, all inserted columns are updated using `VALUES(col)`.
+- **Returns:** `SQLBuilder` (chainable)
+- **Throws:** Error if `insertData` is empty, or `updateData` is an empty array/object
+
 ### Table and Join Methods
 
 #### `from(table)`
@@ -896,7 +966,7 @@ Returns a copy of the current parameter array.
 
 Returns the current query type.
 
-- **Returns:** `string` - Query type (`"SELECT"`, `"INSERT"`, `"UPDATE"`, or `"DELETE"`)
+- **Returns:** `string` - Query type (`"SELECT"`, `"INSERT"`, `"UPSERT"`, `"UPDATE"`, or `"DELETE"`)
 
 ### Transaction Class
 
