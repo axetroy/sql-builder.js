@@ -361,7 +361,8 @@ describe("SQLBuilder", () => {
 	describe("update() 方法", () => {
 		it("应该构建 UPDATE 查询", () => {
 			const { sql, params } = sqlBuilder
-				.update("users", {
+				.update("users")
+				.set({
 					name: "Jane Doe",
 					email: "jane@example.com",
 				})
@@ -374,7 +375,8 @@ describe("SQLBuilder", () => {
 
 		it("自动过滤掉 undefined 值", () => {
 			const { sql, params } = sqlBuilder
-				.update("users", {
+				.update("users")
+				.set({
 					name: "Jane Doe",
 					email: undefined, // 这个字段应该被忽略
 					age: 30,
@@ -388,23 +390,30 @@ describe("SQLBuilder", () => {
 
 		it("应该要求 WHERE 条件", () => {
 			assert.throws(() => {
-				sqlBuilder.update("users", { name: "Test" }).build();
+				sqlBuilder.update("users").set({ name: "Test" }).build();
 			}, /UPDATE query requires WHERE clause/);
 		});
 
 		it("应该拒绝空数据对象", () => {
 			assert.throws(() => {
-				sqlBuilder.update("users", {}).where("id", 1).build();
+				sqlBuilder.update("users").set({}).where("id", 1).build();
 			}, /Update data cannot be empty/);
 
 			assert.throws(() => {
-				sqlBuilder.update("users", null).where("id", 1).build();
+				sqlBuilder.update("users").set(null).where("id", 1).build();
 			}, /Update data cannot be empty/);
 		});
 
-		it("应该支持 update(table, column, rawExpression) 简写形式", () => {
+		it("应该要求调用 set() 方法", () => {
+			assert.throws(() => {
+				sqlBuilder.update("users").where("id", 1).build();
+			}, /Update data cannot be empty/);
+		});
+
+		it("应该支持 set(column, rawExpression) 简写形式", () => {
 			const { sql, params } = sqlBuilder
-				.update("users", "age", "age + 1")
+				.update("users")
+				.set("age", "age + 1")
 				.where("id", 1)
 				.build();
 
@@ -414,7 +423,8 @@ describe("SQLBuilder", () => {
 
 		it("应该支持数据对象中使用 raw() 表达式", () => {
 			const { sql, params } = sqlBuilder
-				.update("users", { age: raw("age + 1") })
+				.update("users")
+				.set({ age: raw("age + 1") })
 				.where("id", 1)
 				.build();
 
@@ -424,7 +434,8 @@ describe("SQLBuilder", () => {
 
 		it("应该支持混合普通值和 raw() 表达式", () => {
 			const { sql, params } = sqlBuilder
-				.update("users", { age: raw("age + 1"), name: "Jane" })
+				.update("users")
+				.set({ age: raw("age + 1"), name: "Jane" })
 				.where("id", 1)
 				.build();
 
@@ -438,7 +449,7 @@ describe("SQLBuilder", () => {
 			}, /Raw expression must be a non-empty string/);
 
 			assert.throws(() => {
-				sqlBuilder.update("users", "age", "");
+				sqlBuilder.update("users").set("age", "");
 			}, /Raw expression must be a non-empty string/);
 		});
 	});
@@ -509,7 +520,7 @@ describe("SQLBuilder", () => {
 			sqlBuilder.reset().insert("users", { name: "test" });
 			assert.strictEqual(sqlBuilder.getQueryType(), "INSERT");
 
-			sqlBuilder.reset().update("users", { name: "test" });
+			sqlBuilder.reset().update("users").set({ name: "test" });
 			assert.strictEqual(sqlBuilder.getQueryType(), "UPDATE");
 
 			sqlBuilder.reset().delete("users");
@@ -685,7 +696,7 @@ describe("SQLBuilder", () => {
 		it("应该构建包含多个查询的事务", () => {
 			const { sql, params } = new Transaction()
 				.add(new SQLBuilder().insert("users", { name: "John" }))
-				.add(new SQLBuilder().update("accounts", { balance: 100 }).where("id", 1))
+				.add(new SQLBuilder().update("accounts").set({ balance: 100 }).where("id", 1))
 				.build();
 
 			assert.strictEqual(
@@ -699,7 +710,7 @@ describe("SQLBuilder", () => {
 			const { sql, params } = new Transaction()
 				.add(new SQLBuilder().insert("users", { name: "John" }))
 				.savepoint("sp1")
-				.add(new SQLBuilder().update("accounts", { balance: 100 }).where("id", 1))
+				.add(new SQLBuilder().update("accounts").set({ balance: 100 }).where("id", 1))
 				.releaseSavepoint("sp1")
 				.build();
 
@@ -714,7 +725,7 @@ describe("SQLBuilder", () => {
 			const { sql, params } = new Transaction()
 				.add(new SQLBuilder().insert("users", { name: "John" }))
 				.savepoint("sp1")
-				.add(new SQLBuilder().update("accounts", { balance: 100 }).where("id", 1))
+				.add(new SQLBuilder().update("accounts").set({ balance: 100 }).where("id", 1))
 				.rollbackTo("sp1")
 				.build();
 
@@ -771,7 +782,7 @@ describe("SQLBuilder", () => {
 		it("应该合并多个查询的参数", () => {
 			const { params } = new Transaction()
 				.add(new SQLBuilder().insert("orders", { user_id: 1, total: 99.99 }))
-				.add(new SQLBuilder().update("inventory", { stock: 10 }).where("product_id", 5))
+				.add(new SQLBuilder().update("inventory").set({ stock: 10 }).where("product_id", 5))
 				.add(new SQLBuilder().delete("cart").where("user_id", 1))
 				.build();
 
@@ -870,7 +881,7 @@ describe("SQLBuilder", () => {
 		it("应该在事务中正确使用 FOR UPDATE 锁", () => {
 			const { sql, params } = new Transaction()
 				.add(new SQLBuilder().select("*").from("users").where("id", 1).lock("FOR UPDATE"))
-				.add(new SQLBuilder().update("users", { name: "Jane" }).where("id", 1))
+				.add(new SQLBuilder().update("users").set({ name: "Jane" }).where("id", 1))
 				.build();
 
 			assert.strictEqual(
