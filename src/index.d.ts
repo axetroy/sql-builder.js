@@ -106,6 +106,18 @@ declare class SQLBuilder {
 	from(table: string): this;
 
 	/**
+	 * 添加 WHERE 条件（分组回调形式，生成括号嵌套）
+	 * @param callback - 分组回调，接收子构建器以定义括号内的条件
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.where('age', '>', 18).where(q => q.where('status', 'active').orWhere('status', 'pending'));
+	 * // WHERE `age` > ? AND (`status` = ? OR `status` = ?)
+	 * ```
+	 */
+	where(callback: (builder: SQLBuilder) => void): this;
+
+	/**
 	 * 添加 WHERE 条件
 	 * @param column - 列名
 	 * @param operator - 操作符，默认为 '='
@@ -119,6 +131,18 @@ declare class SQLBuilder {
 	 * ```
 	 */
 	where(column: string, operator: string, value?: any): this;
+
+	/**
+	 * 添加 OR WHERE 条件（分组回调形式，生成括号嵌套）
+	 * @param callback - 分组回调，接收子构建器以定义括号内的条件
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.where('type', 'vip').orWhere(q => q.where('age', '>', 60).where('member', true));
+	 * // WHERE `type` = ? OR (`age` > ? AND `member` = ?)
+	 * ```
+	 */
+	orWhere(callback: (builder: SQLBuilder) => void): this;
 
 	/**
 	 * 添加 OR WHERE 条件

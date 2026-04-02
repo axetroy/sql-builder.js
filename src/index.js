@@ -297,8 +297,8 @@ class SQLBuilder {
 	}
 
 	/**
-	 * 添加 WHERE 条件
-	 * @param {string} column - 列名，可以使用表别名（如 "u.id"）
+	 * 添加 WHERE 条件（支持分组括号嵌套）
+	 * @param {string|Function} columnOrCallback - 列名，或分组回调函数
 	 * @param {string} [operator] - 操作符，默认为 '='
 	 * @param {any} [value] - 值（当只有两个参数时，第二个参数作为值）
 	 * @returns {SQLBuilder}
@@ -307,8 +307,29 @@ class SQLBuilder {
 	 * sql.where('name', 'John'); // 默认使用 = 操作符
 	 * sql.where('status', 'IS', null);
 	 * sql.where('u.id', 1); // 使用表别名
+	 * // 分组（括号嵌套）
+	 * sql.where('age', '>', 18).where(q => q.where('status', 'active').orWhere('status', 'pending'));
+	 * // WHERE `age` > ? AND (`status` = ? OR `status` = ?)
 	 */
-	where(column, operator, value) {
+	where(columnOrCallback, operator, value) {
+		if (typeof columnOrCallback === "function") {
+			const subBuilder = new SQLBuilder();
+			if (this.#allowedIdentifiers.size > 0) {
+				subBuilder.#allowedIdentifiers = new Set(this.#allowedIdentifiers);
+			}
+			columnOrCallback(subBuilder);
+			if (subBuilder.#query.where.length > 0) {
+				this.#query.where.push({
+					type: "group",
+					connector: "AND",
+					conditions: subBuilder.#query.where,
+				});
+				this.#params.push(...subBuilder.#params);
+			}
+			return this;
+		}
+
+		const column = columnOrCallback;
 		if (arguments.length === 2) {
 			value = operator;
 			operator = "=";
@@ -333,16 +354,37 @@ class SQLBuilder {
 	}
 
 	/**
-	 * 添加 OR WHERE 条件
-	 * @param {string} column - 列名，可以使用表别名
+	 * 添加 OR WHERE 条件（支持分组括号嵌套）
+	 * @param {string|Function} columnOrCallback - 列名，或分组回调函数
 	 * @param {string} [operator] - 操作符，默认为 '='
 	 * @param {any} [value] - 值
 	 * @returns {SQLBuilder}
 	 * @example
 	 * sql.where('status', 'active').orWhere('status', 'pending');
 	 * sql.orWhere('u.role', 'admin'); // 使用表别名
+	 * // 分组（括号嵌套）
+	 * sql.where('type', 'vip').orWhere(q => q.where('age', '>', 60).where('member', true));
+	 * // WHERE `type` = ? OR (`age` > ? AND `member` = ?)
 	 */
-	orWhere(column, operator, value) {
+	orWhere(columnOrCallback, operator, value) {
+		if (typeof columnOrCallback === "function") {
+			const subBuilder = new SQLBuilder();
+			if (this.#allowedIdentifiers.size > 0) {
+				subBuilder.#allowedIdentifiers = new Set(this.#allowedIdentifiers);
+			}
+			columnOrCallback(subBuilder);
+			if (subBuilder.#query.where.length > 0) {
+				this.#query.where.push({
+					type: "group",
+					connector: "OR",
+					conditions: subBuilder.#query.where,
+				});
+				this.#params.push(...subBuilder.#params);
+			}
+			return this;
+		}
+
+		const column = columnOrCallback;
 		if (arguments.length === 2) {
 			value = operator;
 			operator = "=";
@@ -874,6 +916,33 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 递归构建 WHERE 条件字符串（不含前缀 "WHERE"）
+	 * @private
+	 * @param {Array} conditions - 条件数组
+	 * @returns {string} 条件字符串
+	 */
+	#buildWhereConditions(conditions) {
+		return conditions
+			.map((condition, index) => {
+				const connector = index === 0 ? "" : condition.connector + " ";
+
+				if (condition.type === "group") {
+					const nested = this.#buildWhereConditions(condition.conditions);
+					return `${connector}(${nested})`;
+				}
+
+				const valuePlaceholder =
+					condition.operator === "IS" || condition.operator === "IS NOT"
+						? "NULL"
+						: condition.operator === "IN" || condition.operator === "NOT IN" || condition.operator === "BETWEEN"
+							? condition.value
+							: "?";
+				return `${connector}${condition.column} ${condition.operator} ${valuePlaceholder}`;
+			})
+			.join(" ");
+	}
+
+	/**
 	 * 构建 SELECT 查询
 	 * @private
 	 * @returns {{sql: string, params: any[]}}
@@ -903,17 +972,7 @@ class SQLBuilder {
 
 		// WHERE 部分
 		if (this.#query.where.length > 0) {
-			const whereClauses = this.#query.where.map((condition, index) => {
-				const connector = index === 0 ? "WHERE" : condition.connector;
-				const valuePlaceholder =
-					condition.operator === "IS" || condition.operator === "IS NOT"
-						? "NULL"
-						: condition.operator === "IN" || condition.operator === "NOT IN" || condition.operator === "BETWEEN"
-							? condition.value
-							: "?";
-				return `${connector} ${condition.column} ${condition.operator} ${valuePlaceholder}`;
-			});
-			parts.push(whereClauses.join(" "));
+			parts.push(`WHERE ${this.#buildWhereConditions(this.#query.where)}`);
 		}
 
 		// GROUP BY 部分
@@ -988,12 +1047,7 @@ class SQLBuilder {
 
 		// WHERE 部分
 		if (this.#query.where.length > 0) {
-			const whereClauses = this.#query.where.map((condition, index) => {
-				const connector = index === 0 ? "WHERE" : condition.connector;
-				const valuePlaceholder = condition.operator === "IS" || condition.operator === "IS NOT" ? "NULL" : "?";
-				return `${connector} ${condition.column} ${condition.operator} ${valuePlaceholder}`;
-			});
-			parts.push(whereClauses.join(" "));
+			parts.push(`WHERE ${this.#buildWhereConditions(this.#query.where)}`);
 		}
 
 		return {
@@ -1012,12 +1066,7 @@ class SQLBuilder {
 
 		// WHERE 部分
 		if (this.#query.where.length > 0) {
-			const whereClauses = this.#query.where.map((condition, index) => {
-				const connector = index === 0 ? "WHERE" : condition.connector;
-				const valuePlaceholder = condition.operator === "IS" || condition.operator === "IS NOT" ? "NULL" : "?";
-				return `${connector} ${condition.column} ${condition.operator} ${valuePlaceholder}`;
-			});
-			parts.push(whereClauses.join(" "));
+			parts.push(`WHERE ${this.#buildWhereConditions(this.#query.where)}`);
 		}
 
 		return {
