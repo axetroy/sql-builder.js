@@ -732,24 +732,35 @@ class SQLBuilder {
 	}
 
 	/**
-	 * 构建 UPDATE 查询
+	 * 构建 UPDATE 查询，设置目标表
 	 * @param {string} table - 表名
-	 * @param {Object|string} data - 要更新的数据对象（值可以是普通值或 RawExpression），或者列名（配合第三个参数使用）
-	 * @param {string} [rawExpression] - 原始 SQL 表达式，当第二个参数为列名时使用。
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.update('users').set({ name: 'Jane', age: 26 }).where('id', 1);
+	 */
+	update(table) {
+		this.#validateIdentifier(table);
+		this.#query.type = "UPDATE";
+		this.#query.table = this.#escapeIdentifier(table);
+		return this;
+	}
+
+	/**
+	 * 设置 UPDATE 查询的更新数据
+	 * @param {Object|string} data - 要更新的数据对象（值可以是普通值或 RawExpression），或者列名（配合第二个参数使用）
+	 * @param {string} [rawExpression] - 原始 SQL 表达式，当第一个参数为列名时使用。
 	 *   注意：表达式会直接嵌入 SQL，请勿传入用户输入。
 	 * @returns {SQLBuilder}
 	 * @throws {Error} 当 data 为空对象时抛出错误
 	 * @example
-	 * sql.update('users', { name: 'Jane', age: 26 }).where('id', 1);
-	 * sql.update('users', 'age', 'age + 1').where('id', 1);
-	 * sql.update('users', { age: raw('age + 1'), updated_at: new Date() }).where('id', 1);
+	 * sql.update('users').set({ name: 'Jane', age: 26 }).where('id', 1);
+	 * sql.update('users').set('age', 'age + 1').where('id', 1);
+	 * sql.update('users').set({ age: raw('age + 1'), updated_at: new Date() }).where('id', 1);
 	 */
-	update(table, data, rawExpression = undefined) {
-		this.#validateIdentifier(table);
-
-		// Shorthand: update(table, column, rawExpression)
+	set(data, rawExpression = undefined) {
+		// Shorthand: set(column, rawExpression)
 		if (typeof data === "string" && rawExpression !== undefined) {
-			return this.update(table, { [data]: raw(rawExpression) });
+			return this.set({ [data]: raw(rawExpression) });
 		}
 
 		if (!data || typeof data !== "object") {
@@ -768,8 +779,6 @@ class SQLBuilder {
 			escapedData[this.#escapeIdentifier(key)] = value;
 		});
 
-		this.#query.type = "UPDATE";
-		this.#query.table = this.#escapeIdentifier(table);
 		this.#query.set = escapedData;
 		this.#params.push(...entries.filter(([, value]) => !(value instanceof RawExpression)).map(([, value]) => value));
 		return this;
@@ -961,6 +970,10 @@ class SQLBuilder {
 	 * @returns {{sql: string, params: any[]}}
 	 */
 	#buildUpdate() {
+		if (Object.keys(this.#query.set).length === 0) {
+			throw new Error("Update data cannot be empty");
+		}
+
 		const setClauses = Object.keys(this.#query.set)
 			.map((column) => {
 				const value = this.#query.set[column];
@@ -1075,7 +1088,7 @@ class SQLBuilder {
  * const transaction = new Transaction();
  * const result = transaction
  *   .add(new SQLBuilder().insert('users', { name: 'John' }))
- *   .add(new SQLBuilder().update('accounts', { balance: 100 }).where('id', 1))
+ *   .add(new SQLBuilder().update('accounts').set({ balance: 100 }).where('id', 1))
  *   .build();
  * console.log(result.sql);
  * // BEGIN;

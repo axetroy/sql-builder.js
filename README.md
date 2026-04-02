@@ -130,7 +130,8 @@ const { sql, params } = sqlBuilder
 
 ```js
 const { sql, params } = sqlBuilder
-  .update("users", {
+  .update("users")
+  .set({
     name: "Jane Doe",
     age: 26
   })
@@ -147,9 +148,10 @@ Use `raw()` to embed a SQL expression directly in a `SET` clause — for example
 ```js
 import { SQLBuilder, raw } from "sql-builder.js";
 
-// Shorthand: update(table, column, expression)
+// Shorthand: set(column, expression)
 const { sql, params } = sqlBuilder
-  .update("users", "age", "age + 1")
+  .update("users")
+  .set("age", "age + 1")
   .where("id", 1)
   .build();
 // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
@@ -157,14 +159,16 @@ const { sql, params } = sqlBuilder
 
 // Object form using raw()
 sqlBuilder
-  .update("users", { age: raw("age + 1") })
+  .update("users")
+  .set({ age: raw("age + 1") })
   .where("id", 1)
   .build();
 // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
 
 // Mix raw expressions with parameterized values
 sqlBuilder
-  .update("users", { age: raw("age + 1"), name: "Jane" })
+  .update("users")
+  .set({ age: raw("age + 1"), name: "Jane" })
   .where("id", 1)
   .build();
 // UPDATE `users` SET `age` = age + 1, `name` = ? WHERE `id` = ?
@@ -473,17 +477,18 @@ Use the `raw()` helper to embed a SQL fragment verbatim in an `UPDATE` `SET` cla
 ```js
 import { SQLBuilder, raw } from "sql-builder.js";
 
-// Shorthand: update(table, column, expression)
-sqlBuilder.update("users", "views", "views + 1").where("id", 1).build();
+// Shorthand: set(column, expression)
+sqlBuilder.update("users").set("views", "views + 1").where("id", 1).build();
 // UPDATE `users` SET `views` = views + 1 WHERE `id` = ?
 
 // Object form
-sqlBuilder.update("users", { score: raw("score * 2") }).where("id", 1).build();
+sqlBuilder.update("users").set({ score: raw("score * 2") }).where("id", 1).build();
 // UPDATE `users` SET `score` = score * 2 WHERE `id` = ?
 
 // Mixed: raw and parameterized values together
 sqlBuilder
-  .update("users", { age: raw("age + 1"), name: "Jane" })
+  .update("users")
+  .set({ age: raw("age + 1"), name: "Jane" })
   .where("id", 1)
   .build();
 // UPDATE `users` SET `age` = age + 1, `name` = ? WHERE `id` = ?
@@ -519,7 +524,7 @@ import { Transaction, SQLBuilder } from "sql-builder.js";
 
 const { sql, params } = new Transaction()
   .add(new SQLBuilder().insert("users", { name: "John", email: "john@example.com" }))
-  .add(new SQLBuilder().update("accounts", { balance: 500 }).where("user_id", 1))
+  .add(new SQLBuilder().update("accounts").set({ balance: 500 }).where("user_id", 1))
   .build();
 
 console.log(sql);
@@ -547,7 +552,7 @@ new Transaction("EXCLUSIVE").add(...).build(); // BEGIN EXCLUSIVE;
 const { sql, params } = new Transaction()
   .add(new SQLBuilder().insert("orders", { user_id: 1, total: 99.99 }))
   .savepoint("before_inventory")
-  .add(new SQLBuilder().update("inventory", { stock: 10 }).where("product_id", 5))
+  .add(new SQLBuilder().update("inventory").set({ stock: 10 }).where("product_id", 5))
   .releaseSavepoint("before_inventory")
   .build();
 
@@ -652,28 +657,34 @@ Creates an INSERT query.
   - `data` (object): Object with column names as keys and values to insert
 - **Returns:** `SQLBuilder` (chainable)
 
-#### `update(table, data)`
+#### `update(table)`
 
-Creates an UPDATE query. **Requires a WHERE clause.**
+Creates an UPDATE query, setting the target table. **Must be followed by `.set()`. Requires a WHERE clause.**
 
 - **Parameters:**
   - `table` (string): Table name
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `set(data)`
+
+Sets the columns and values for an UPDATE query.
+
+- **Parameters:**
   - `data` (object): Object with column names as keys and new values. Values may be plain values (parameterized) or `RawExpression` instances (embedded verbatim).
 - **Returns:** `SQLBuilder` (chainable)
 
-#### `update(table, column, rawExpression)`
+#### `set(column, rawExpression)`
 
 Shorthand for updating a single column with a raw SQL expression.
 
 - **Parameters:**
-  - `table` (string): Table name
   - `column` (string): Column name to update
   - `rawExpression` (string): SQL expression to embed verbatim (e.g. `"age + 1"`). **Do not pass user input.**
 - **Returns:** `SQLBuilder` (chainable)
 
 #### `raw(expression)`
 
-Creates a `RawExpression` that can be used as a value in `update()`. The expression is embedded verbatim in the `SET` clause — it is **not** parameterized.
+Creates a `RawExpression` that can be used as a value in `set()`. The expression is embedded verbatim in the `SET` clause — it is **not** parameterized.
 
 - **Parameters:**
   - `expression` (string): A non-empty SQL expression. **Do not pass user input.**
@@ -682,7 +693,7 @@ Creates a `RawExpression` that can be used as a value in `update()`. The express
 ```js
 import { raw } from "sql-builder.js";
 
-sqlBuilder.update("users", { age: raw("age + 1") }).where("id", 1).build();
+sqlBuilder.update("users").set({ age: raw("age + 1") }).where("id", 1).build();
 // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
 ```
 
@@ -956,11 +967,11 @@ The library requires WHERE clauses for UPDATE and DELETE to prevent accidental d
 
 ```js
 // ❌ This will throw an error
-sqlBuilder.update("users", { status: "inactive" }).build();
+sqlBuilder.update("users").set({ status: "inactive" }).build();
 // Error: UPDATE query requires WHERE clause
 
 // ✅ This is safe
-sqlBuilder.update("users", { status: "inactive" })
+sqlBuilder.update("users").set({ status: "inactive" })
   .where("last_login", "<", "2020-01-01")
   .build();
 ```
@@ -1063,7 +1074,8 @@ const result: { sql: string; params: any[] } = sqlBuilder
 
 // raw() is fully typed
 const update = sqlBuilder
-  .update("users", { age: raw("age + 1"), name: "Jane" })
+  .update("users")
+  .set({ age: raw("age + 1"), name: "Jane" })
   .where("id", 1)
   .build();
 ```

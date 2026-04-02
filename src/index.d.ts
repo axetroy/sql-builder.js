@@ -304,32 +304,43 @@ declare class SQLBuilder {
 	insert(table: string, data: Record<string, any>): this;
 
 	/**
-	 * 构建 UPDATE 查询
+	 * 构建 UPDATE 查询，设置目标表
 	 * @param table - 表名
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.update('users').set({ name: 'Jane', age: 26 }).where('id', 1);
+	 * sql.update('users').set({ age: raw('age + 1') }).where('id', 1);
+	 * // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
+	 * ```
+	 */
+	update(table: string): this;
+
+	/**
+	 * 设置 UPDATE 查询的更新数据
 	 * @param data - 要更新的数据对象（值可以是普通值或 RawExpression）
 	 * @returns SQLBuilder 实例
 	 * @example
 	 * ```typescript
-	 * sql.update('users', { name: 'Jane', age: 26 }).where('id', 1);
-	 * sql.update('users', { age: raw('age + 1') }).where('id', 1);
+	 * sql.update('users').set({ name: 'Jane', age: 26 }).where('id', 1);
+	 * sql.update('users').set({ age: raw('age + 1') }).where('id', 1);
 	 * // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
 	 * ```
 	 */
-	update(table: string, data: Record<string, any | RawExpression>): this;
+	set(data: Record<string, any | RawExpression>): this;
 
 	/**
-	 * 构建 UPDATE 查询（单列原始表达式简写形式）
-	 * @param table - 表名
+	 * 设置 UPDATE 查询的更新数据（单列原始表达式简写形式）
 	 * @param column - 要更新的列名
 	 * @param rawExpression - 原始 SQL 表达式（直接嵌入 SQL，不会参数化，请勿传入用户输入）
 	 * @returns SQLBuilder 实例
 	 * @example
 	 * ```typescript
-	 * sql.update('users', 'age', 'age + 1').where('id', 1);
+	 * sql.update('users').set('age', 'age + 1').where('id', 1);
 	 * // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
 	 * ```
 	 */
-	update(table: string, column: string, rawExpression: string): this;
+	set(column: string, rawExpression: string): this;
 
 	/**
 	 * 为 SELECT 查询添加行级锁定子句
@@ -418,7 +429,7 @@ interface TransactionResult {
  * const transaction = new Transaction();
  * const { sql, params } = transaction
  *   .add(new SQLBuilder().insert('users', { name: 'John' }))
- *   .add(new SQLBuilder().update('accounts', { balance: 100 }).where('id', 1))
+ *   .add(new SQLBuilder().update('accounts').set({ balance: 100 }).where('id', 1))
  *   .build();
  * // sql:
  * // BEGIN;
