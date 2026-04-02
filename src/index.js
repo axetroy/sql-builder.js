@@ -72,6 +72,7 @@ class SQLBuilder {
 		withTotal: undefined,
 		lock: null,
 		returning: null,
+		insertRows: null,
 	};
 
 	/**
@@ -247,6 +248,7 @@ class SQLBuilder {
 			withTotal: undefined,
 			lock: null,
 			returning: null,
+			insertRows: null,
 		};
 		this.#params = [];
 		return this;
@@ -1051,30 +1053,66 @@ class SQLBuilder {
 	/**
 	 * 构建 INSERT 查询
 	 * @param {string} table - 表名
-	 * @param {Object} data - 要插入的数据对象
+	 * @param {Object|Object[]} data - 要插入的数据对象，或数据对象数组（批量插入）
 	 * @returns {SQLBuilder}
-	 * @throws {Error} 当 data 为空对象时抛出错误
+	 * @throws {Error} 当 data 为空对象或空数组时抛出错误
 	 * @example
 	 * sql.insert('users', { name: 'John', age: 25, email: 'john@example.com' });
+	 * sql.insert('users', [{ name: 'John', age: 25 }, { name: 'Jane', age: 30 }]);
 	 */
 	insert(table, data) {
 		this.#validateIdentifier(table);
 
-		if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
+		if (!data || typeof data !== "object") {
 			throw new Error("Insert data cannot be empty");
 		}
 
-		// 转义所有列名
+		const rows = Array.isArray(data) ? data : [data];
+
+		if (rows.length === 0) {
+			throw new Error("Insert data cannot be empty");
+		}
+
+		for (const row of rows) {
+			if (!row || typeof row !== "object" || Object.keys(row).length === 0) {
+				throw new Error("Insert data cannot be empty");
+			}
+		}
+
+		// 转义所有列名（以第一行为准）
+		const firstRow = rows[0];
+		const columnKeys = Object.keys(firstRow);
+
+		// 验证所有行的列名与第一行一致
+		if (rows.length > 1) {
+			for (let i = 1; i < rows.length; i++) {
+				const rowKeys = Object.keys(rows[i]);
+				if (rowKeys.length !== columnKeys.length || !columnKeys.every((k) => Object.prototype.hasOwnProperty.call(rows[i], k))) {
+					throw new Error("All rows in a batch insert must have the same columns");
+				}
+			}
+		}
+
 		const escapedData = {};
-		Object.keys(data).forEach((key) => {
+		columnKeys.forEach((key) => {
 			this.#validateIdentifier(key);
-			escapedData[this.#escapeIdentifier(key)] = data[key];
+			escapedData[this.#escapeIdentifier(key)] = firstRow[key];
 		});
 
 		this.#query.type = "INSERT";
 		this.#query.table = this.#escapeIdentifier(table);
 		this.#query.values = escapedData;
-		this.#params.push(...Object.values(data));
+
+		if (rows.length === 1) {
+			this.#params.push(...columnKeys.map((k) => firstRow[k]));
+		} else {
+			// 批量插入：存储所有行的数据，params 按列顺序（以第一行列名为准）展平
+			this.#query.insertRows = rows;
+			for (const row of rows) {
+				this.#params.push(...columnKeys.map((k) => row[k]));
+			}
+		}
+
 		return this;
 	}
 
@@ -1361,7 +1399,14 @@ class SQLBuilder {
 		const columns = Object.keys(this.#query.values);
 		const placeholders = this.#buildPlaceholders(columns.length);
 
-		const parts = [`INSERT INTO ${this.#query.table} (${columns.join(", ")}) VALUES (${placeholders})`];
+		let valuesList;
+		if (this.#query.insertRows && this.#query.insertRows.length > 1) {
+			valuesList = this.#query.insertRows.map(() => `(${placeholders})`).join(", ");
+		} else {
+			valuesList = `(${placeholders})`;
+		}
+
+		const parts = [`INSERT INTO ${this.#query.table} (${columns.join(", ")}) VALUES ${valuesList}`];
 
 		const returning = this.#buildReturningClause();
 		if (returning) parts.push(returning);
