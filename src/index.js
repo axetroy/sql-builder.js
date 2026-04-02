@@ -68,6 +68,7 @@ class SQLBuilder {
 		offset: null,
 		values: {},
 		set: {},
+		upsertUpdate: null,
 		withTotal: undefined,
 		lock: null,
 	};
@@ -241,6 +242,7 @@ class SQLBuilder {
 			offset: null,
 			values: {},
 			set: {},
+			upsertUpdate: null,
 			withTotal: undefined,
 			lock: null,
 		};
@@ -956,6 +958,95 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 构建 UPSERT 查询（INSERT ... ON DUPLICATE KEY UPDATE）
+	 * 适用于 MySQL / MariaDB。
+	 * 注意：使用 VALUES(col) 语法的字符串数组和默认模式在 MySQL 8.0.20+ 中已弃用；
+	 * 对于 MySQL 9.0+，请改用显式更新数据对象（第三个参数传入对象）。
+	 * @param {string} table - 表名
+	 * @param {Object} insertData - 要插入的数据对象
+	 * @param {string[]|Object} [updateData] - 冲突时要更新的列名数组，或显式更新数据对象（值可以是普通值或 RawExpression）。
+	 *   若为字符串数组，则使用 VALUES(col) 引用插入值；
+	 *   若为对象，则使用对象中指定的值（支持 RawExpression）；
+	 *   若省略，则更新 insertData 中的所有列（使用 VALUES(col)）。
+	 * @returns {SQLBuilder}
+	 * @throws {Error} 当 insertData 为空对象时抛出错误
+	 * @example
+	 * // 更新所有插入列（使用 VALUES(col)）
+	 * sql.upsert('users', { name: 'John', email: 'john@example.com' });
+	 * // INSERT INTO `users` (`name`, `email`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `email` = VALUES(`email`)
+	 *
+	 * // 只更新指定列
+	 * sql.upsert('users', { name: 'John', email: 'john@example.com' }, ['name']);
+	 * // INSERT INTO `users` (`name`, `email`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `name` = VALUES(`name`)
+	 *
+	 * // 使用显式更新数据（推荐用于 MySQL 8.0.20+）
+	 * sql.upsert('users', { name: 'John', email: 'john@example.com' }, { name: 'John Updated' });
+	 * // INSERT INTO `users` (`name`, `email`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `name` = ?
+	 */
+	upsert(table, insertData, updateData = undefined) {
+		this.#validateIdentifier(table);
+
+		if (!insertData || typeof insertData !== "object" || Object.keys(insertData).length === 0) {
+			throw new Error("Upsert insert data cannot be empty");
+		}
+
+		// 转义插入列名
+		const escapedInsertData = {};
+		Object.keys(insertData).forEach((key) => {
+			this.#validateIdentifier(key);
+			escapedInsertData[this.#escapeIdentifier(key)] = insertData[key];
+		});
+
+		// 处理更新数据
+		let escapedUpdateData;
+		if (updateData === undefined) {
+			// 默认：用 VALUES(col) 更新所有插入列
+			escapedUpdateData = null;
+		} else if (Array.isArray(updateData)) {
+			// 字符串数组：用 VALUES(col) 更新指定列
+			if (updateData.length === 0) {
+				throw new Error("Upsert update columns cannot be empty");
+			}
+			escapedUpdateData = updateData.map((col) => {
+				this.#validateIdentifier(col);
+				return this.#escapeIdentifier(col);
+			});
+		} else if (typeof updateData === "object" && updateData !== null) {
+			// 对象：使用显式值（支持 RawExpression）
+			const entries = Object.entries(updateData).filter(([_key, value]) => value !== undefined);
+			if (entries.length === 0) {
+				throw new Error("Upsert update data cannot be empty");
+			}
+			escapedUpdateData = {};
+			entries.forEach(([key, value]) => {
+				this.#validateIdentifier(key);
+				escapedUpdateData[this.#escapeIdentifier(key)] = value;
+			});
+		} else {
+			throw new Error("Upsert update data must be an array of column names or an object");
+		}
+
+		this.#query.type = "UPSERT";
+		this.#query.table = this.#escapeIdentifier(table);
+		this.#query.values = escapedInsertData;
+		this.#query.upsertUpdate = escapedUpdateData;
+
+		// 添加插入参数
+		this.#params.push(...Object.values(insertData));
+
+		// 若是显式对象，添加更新参数（排除 RawExpression）
+		if (escapedUpdateData !== null && !Array.isArray(escapedUpdateData)) {
+			Object.values(escapedUpdateData).forEach((value) => {
+				if (!(value instanceof RawExpression)) {
+					this.#params.push(value);
+				}
+			});
+		}
+
+		return this;
+	}
+
+	/**
 	 * 构建 INSERT 查询
 	 * @param {string} table - 表名
 	 * @param {Object} data - 要插入的数据对象
@@ -1106,6 +1197,8 @@ class SQLBuilder {
 				return this.#buildSelect();
 			case "INSERT":
 				return this.#buildInsert();
+			case "UPSERT":
+				return this.#buildUpsert();
 			case "UPDATE":
 				return this.#buildUpdate();
 			case "DELETE":
@@ -1232,6 +1325,44 @@ class SQLBuilder {
 		const placeholders = this.#buildPlaceholders(columns.length);
 
 		const sql = `INSERT INTO ${this.#query.table} (${columns.join(", ")}) VALUES (${placeholders})`;
+
+		return {
+			sql,
+			params: this.#params,
+		};
+	}
+
+	/**
+	 * 构建 UPSERT 查询（INSERT ... ON DUPLICATE KEY UPDATE）
+	 * @private
+	 * @returns {{sql: string, params: any[]}}
+	 */
+	#buildUpsert() {
+		const columns = Object.keys(this.#query.values);
+		const placeholders = this.#buildPlaceholders(columns.length);
+
+		const updateData = this.#query.upsertUpdate;
+		let updateClauses;
+
+		if (updateData === null) {
+			// 默认：用 VALUES(col) 更新所有插入列
+			updateClauses = columns.map((col) => `${col} = VALUES(${col})`).join(", ");
+		} else if (Array.isArray(updateData)) {
+			// 字符串数组：用 VALUES(col) 更新指定列
+			updateClauses = updateData.map((col) => `${col} = VALUES(${col})`).join(", ");
+		} else {
+			// 对象：使用显式值（支持 RawExpression）
+			updateClauses = Object.entries(updateData)
+				.map(([col, value]) => {
+					if (value instanceof RawExpression) {
+						return `${col} = ${value.expression}`;
+					}
+					return `${col} = ?`;
+				})
+				.join(", ");
+		}
+
+		const sql = `INSERT INTO ${this.#query.table} (${columns.join(", ")}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updateClauses}`;
 
 		return {
 			sql,

@@ -747,6 +747,117 @@ describe("SQLBuilder", () => {
 		});
 	});
 
+	describe("upsert() 方法", () => {
+		it("应该构建基本的 UPSERT 查询（默认更新所有插入列）", () => {
+			const { sql, params } = sqlBuilder
+				.upsert("users", { name: "John", email: "john@example.com" })
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"INSERT INTO `users` (`name`, `email`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `email` = VALUES(`email`)",
+			);
+			assert.deepStrictEqual(params, ["John", "john@example.com"]);
+		});
+
+		it("应该支持字符串数组指定更新列（使用 VALUES(col)）", () => {
+			const { sql, params } = sqlBuilder
+				.upsert("users", { name: "John", email: "john@example.com", age: 25 }, ["name", "email"])
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"INSERT INTO `users` (`name`, `email`, `age`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `email` = VALUES(`email`)",
+			);
+			assert.deepStrictEqual(params, ["John", "john@example.com", 25]);
+		});
+
+		it("应该支持显式更新数据对象", () => {
+			const { sql, params } = sqlBuilder
+				.upsert("users", { name: "John", email: "john@example.com" }, { name: "John Updated" })
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"INSERT INTO `users` (`name`, `email`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `name` = ?",
+			);
+			assert.deepStrictEqual(params, ["John", "john@example.com", "John Updated"]);
+		});
+
+		it("应该支持在更新数据中使用 raw() 表达式", () => {
+			const { sql, params } = sqlBuilder
+				.upsert("users", { name: "John", views: 1 }, { views: raw("views + 1") })
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"INSERT INTO `users` (`name`, `views`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `views` = views + 1",
+			);
+			assert.deepStrictEqual(params, ["John", 1]);
+		});
+
+		it("应该支持混合普通值和 raw() 表达式的更新数据", () => {
+			const { sql, params } = sqlBuilder
+				.upsert("users", { name: "John", email: "john@example.com", views: 1 }, { name: "John Updated", views: raw("views + 1") })
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"INSERT INTO `users` (`name`, `email`, `views`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `name` = ?, `views` = views + 1",
+			);
+			assert.deepStrictEqual(params, ["John", "john@example.com", 1, "John Updated"]);
+		});
+
+		it("应该拒绝空的插入数据", () => {
+			assert.throws(() => {
+				sqlBuilder.upsert("users", {}).build();
+			}, /Upsert insert data cannot be empty/);
+
+			assert.throws(() => {
+				sqlBuilder.upsert("users", null).build();
+			}, /Upsert insert data cannot be empty/);
+		});
+
+		it("应该拒绝空的更新列数组", () => {
+			assert.throws(() => {
+				sqlBuilder.upsert("users", { name: "John" }, []).build();
+			}, /Upsert update columns cannot be empty/);
+		});
+
+		it("应该拒绝空的更新数据对象（所有值为 undefined）", () => {
+			assert.throws(() => {
+				sqlBuilder.upsert("users", { name: "John" }, { name: undefined }).build();
+			}, /Upsert update data cannot be empty/);
+		});
+
+		it("应该拒绝危险的表名", () => {
+			assert.throws(() => {
+				sqlBuilder.upsert("users; DROP TABLE users--", { name: "John" }).build();
+			}, /Potential SQL injection detected in identifier/);
+		});
+
+		it("应该拒绝危险的列名", () => {
+			assert.throws(() => {
+				sqlBuilder.upsert("users", { "name; DROP TABLE users--": "John" }).build();
+			}, /Potential SQL injection detected in identifier/);
+		});
+
+		it("应该支持 getQueryType() 返回 UPSERT", () => {
+			sqlBuilder.upsert("users", { name: "John" });
+			assert.strictEqual(sqlBuilder.getQueryType(), "UPSERT");
+		});
+
+		it("应该支持在事务中使用 UPSERT", () => {
+			const { sql, params } = new Transaction()
+				.add(new SQLBuilder().upsert("users", { name: "John", email: "john@example.com" }))
+				.build();
+
+			assert.ok(sql.includes("INSERT INTO `users`"));
+			assert.ok(sql.includes("ON DUPLICATE KEY UPDATE"));
+			assert.deepStrictEqual(params, ["John", "john@example.com"]);
+		});
+	});
+
 	describe("复杂查询", () => {
 		it("应该构建复杂的 SELECT 查询", () => {
 			const { sql, params } = sqlBuilder
@@ -797,6 +908,9 @@ describe("SQLBuilder", () => {
 
 			sqlBuilder.reset().insert("users", { name: "test" });
 			assert.strictEqual(sqlBuilder.getQueryType(), "INSERT");
+
+			sqlBuilder.reset().upsert("users", { name: "test" });
+			assert.strictEqual(sqlBuilder.getQueryType(), "UPSERT");
 
 			sqlBuilder.reset().update("users").set({ name: "test" });
 			assert.strictEqual(sqlBuilder.getQueryType(), "UPDATE");

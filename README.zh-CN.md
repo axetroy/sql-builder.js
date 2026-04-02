@@ -51,6 +51,7 @@ console.log(params); // [18]
   - [INSERT 查询](#insert-查询)
   - [UPDATE 查询](#update-查询)
   - [DELETE 查询](#delete-查询)
+  - [UPSERT 查询](#upsert-查询)
 - [高级特性](#高级特性)
   - [WHERE 条件](#where-条件)
   - [JOIN 操作](#join-操作)
@@ -188,6 +189,63 @@ const { sql, params } = sqlBuilder
 ```
 
 **安全提示**：DELETE 查询需要 WHERE 子句，以防止意外的数据损失。
+
+### UPSERT 查询
+
+UPSERT 在记录不存在时插入，在发现重复键时更新（`INSERT ... ON DUPLICATE KEY UPDATE`）。
+
+#### 冲突时更新所有插入列
+
+```js
+const { sql, params } = sqlBuilder
+  .upsert("users", {
+    name: "张三",
+    email: "zhangsan@example.com",
+    age: 25
+  })
+  .build();
+// INSERT INTO `users` (`name`, `email`, `age`) VALUES (?, ?, ?)
+// ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `email` = VALUES(`email`), `age` = VALUES(`age`)
+// params: ['张三', 'zhangsan@example.com', 25]
+```
+
+#### 冲突时只更新指定列
+
+将列名字符串数组作为第三个参数传入，只更新这些列（使用 `VALUES(col)`）：
+
+```js
+const { sql, params } = sqlBuilder
+  .upsert(
+    "users",
+    { name: "张三", email: "zhangsan@example.com", age: 25 },
+    ["name", "age"]
+  )
+  .build();
+// INSERT INTO `users` (`name`, `email`, `age`) VALUES (?, ?, ?)
+// ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `age` = VALUES(`age`)
+// params: ['张三', 'zhangsan@example.com', 25]
+```
+
+#### 冲突时使用显式更新值
+
+将对象作为第三个参数传入，以指定显式更新值，支持 `raw()` 表达式：
+
+```js
+const { sql, params } = sqlBuilder
+  .upsert(
+    "users",
+    { name: "张三", email: "zhangsan@example.com", views: 1 },
+    { name: "张三", views: raw("views + 1") }
+  )
+  .build();
+// INSERT INTO `users` (`name`, `email`, `views`) VALUES (?, ?, ?)
+// ON DUPLICATE KEY UPDATE `name` = ?, `views` = views + 1
+// params: ['张三', 'zhangsan@example.com', 1, '张三']
+```
+
+> ⚠️ **安全提示**：更新数据中的原始表达式会直接嵌入 SQL，请勿将用户输入传入 `raw()`。
+
+> **MySQL 兼容性说明**：使用 `VALUES(col)` 语法（省略 `updateData` 或传入数组时）在 MySQL 8.0.20+ 中已弃用，并在 MySQL 9.0 中被移除。对于 MySQL 8.0.20+ 或 9.0+，请改为传入显式对象作为 `updateData`。
 
 ## 高级特性
 
@@ -694,6 +752,20 @@ sqlBuilder.update("users", { age: raw("age + 1") }).where("id", 1).build();
   - `table`（string，可选）：表名
 - **返回值：** `SQLBuilder`（可链式调用）
 
+#### `upsert(table, insertData, [updateData])`
+
+创建 UPSERT 查询（`INSERT ... ON DUPLICATE KEY UPDATE`）。
+
+- **参数：**
+  - `table`（string）：表名
+  - `insertData`（object）：要插入的数据对象，键为列名，值为插入值
+  - `updateData`（string[] | object，可选）：冲突时要更新的内容。  
+    - 若为**字符串数组**，则使用 `VALUES(col)` 更新指定列以引用插入值。  
+    - 若为**对象**，则使用指定的值（支持通过 `raw()` 的 `RawExpression`）。  
+    - 若**省略**，则使用 `VALUES(col)` 更新所有插入列。
+- **返回值：** `SQLBuilder`（可链式调用）
+- **抛出异常：** 当 `insertData` 为空或 `updateData` 为空数组/对象时抛出错误
+
 ### 表和 JOIN 方法
 
 #### `from(table)`
@@ -885,7 +957,7 @@ sqlBuilder.update("users", { age: raw("age + 1") }).where("id", 1).build();
 
 返回当前查询类型。
 
-- **返回值：** `string` - 查询类型（`"SELECT"`、`"INSERT"`、`"UPDATE"` 或 `"DELETE"`）
+- **返回值：** `string` - 查询类型（`"SELECT"`、`"INSERT"`、`"UPSERT"`、`"UPDATE"` 或 `"DELETE"`）
 
 ### Transaction 类
 
