@@ -249,6 +249,8 @@ const { sql, params } = sqlBuilder
 
 > ⚠️ **Security Note**: Raw expressions in update data are embedded verbatim in the SQL. Never pass user-supplied input to `raw()`.
 
+> **MySQL Compatibility Note**: The `VALUES(col)` syntax (used when `updateData` is omitted or an array) is deprecated in MySQL 8.0.20 and removed in MySQL 9.0. For MySQL 8.0.20+ or 9.0+, pass an explicit object as `updateData` instead.
+
 ## Advanced Features
 
 ### WHERE Conditions

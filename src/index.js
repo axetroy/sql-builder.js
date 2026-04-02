@@ -959,6 +959,9 @@ class SQLBuilder {
 
 	/**
 	 * 构建 UPSERT 查询（INSERT ... ON DUPLICATE KEY UPDATE）
+	 * 适用于 MySQL / MariaDB。
+	 * 注意：使用 VALUES(col) 语法的字符串数组和默认模式在 MySQL 8.0.20+ 中已弃用；
+	 * 对于 MySQL 9.0+，请改用显式更新数据对象（第三个参数传入对象）。
 	 * @param {string} table - 表名
 	 * @param {Object} insertData - 要插入的数据对象
 	 * @param {string[]|Object} [updateData] - 冲突时要更新的列名数组，或显式更新数据对象（值可以是普通值或 RawExpression）。
@@ -976,7 +979,7 @@ class SQLBuilder {
 	 * sql.upsert('users', { name: 'John', email: 'john@example.com' }, ['name']);
 	 * // INSERT INTO `users` (`name`, `email`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `name` = VALUES(`name`)
 	 *
-	 * // 使用显式更新数据
+	 * // 使用显式更新数据（推荐用于 MySQL 8.0.20+）
 	 * sql.upsert('users', { name: 'John', email: 'john@example.com' }, { name: 'John Updated' });
 	 * // INSERT INTO `users` (`name`, `email`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `name` = ?
 	 */
@@ -1010,7 +1013,7 @@ class SQLBuilder {
 			});
 		} else if (typeof updateData === "object" && updateData !== null) {
 			// 对象：使用显式值（支持 RawExpression）
-			const entries = Object.entries(updateData).filter(([, value]) => value !== undefined);
+			const entries = Object.entries(updateData).filter(([_key, value]) => value !== undefined);
 			if (entries.length === 0) {
 				throw new Error("Upsert update data cannot be empty");
 			}

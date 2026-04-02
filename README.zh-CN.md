@@ -245,6 +245,8 @@ const { sql, params } = sqlBuilder
 
 > ⚠️ **安全提示**：更新数据中的原始表达式会直接嵌入 SQL，请勿将用户输入传入 `raw()`。
 
+> **MySQL 兼容性说明**：使用 `VALUES(col)` 语法（省略 `updateData` 或传入数组时）在 MySQL 8.0.20+ 中已弃用，并在 MySQL 9.0 中被移除。对于 MySQL 8.0.20+ 或 9.0+，请改为传入显式对象作为 `updateData`。
+
 ## 高级特性
 
 ### WHERE 条件
