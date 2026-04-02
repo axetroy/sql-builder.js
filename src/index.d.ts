@@ -508,6 +508,23 @@ declare class SQLBuilder {
 	lock(mode: "FOR UPDATE" | "FOR SHARE" | "LOCK IN SHARE MODE"): this;
 
 	/**
+	 * 为 INSERT/UPDATE/DELETE 查询添加 RETURNING 子句，指定返回的列
+	 * @param columns - 要返回的列名，传入 '*' 返回所有列
+	 * @returns SQLBuilder 实例
+	 * @throws 当列名格式非法时抛出错误
+	 * @example
+	 * ```typescript
+	 * sql.insert('users', { name: 'John' }).returning('id', 'name');
+	 * // INSERT INTO `users` (`name`) VALUES (?) RETURNING `id`, `name`
+	 * sql.update('users').set({ name: 'Jane' }).where('id', 1).returning('*');
+	 * // UPDATE `users` SET `name` = ? WHERE `id` = ? RETURNING *
+	 * sql.delete('users').where('id', 1).returning('id');
+	 * // DELETE FROM `users` WHERE `id` = ? RETURNING `id`
+	 * ```
+	 */
+	returning(...columns: string[]): this;
+
+	/**
 	 * 构建 DELETE 查询
 	 * @param table - 表名（可选）
 	 * @returns SQLBuilder 实例

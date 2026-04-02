@@ -747,6 +747,99 @@ describe("SQLBuilder", () => {
 		});
 	});
 
+	describe("returning() 方法", () => {
+		it("应该在 INSERT 查询中添加 RETURNING 子句（指定列）", () => {
+			const { sql, params } = sqlBuilder
+				.insert("users", { name: "John", email: "john@example.com" })
+				.returning("id", "name")
+				.build();
+
+			assert.strictEqual(sql, "INSERT INTO `users` (`name`, `email`) VALUES (?, ?) RETURNING `id`, `name`");
+			assert.deepStrictEqual(params, ["John", "john@example.com"]);
+		});
+
+		it("应该在 INSERT 查询中添加 RETURNING * 子句", () => {
+			const { sql, params } = sqlBuilder
+				.insert("users", { name: "John" })
+				.returning("*")
+				.build();
+
+			assert.strictEqual(sql, "INSERT INTO `users` (`name`) VALUES (?) RETURNING *");
+			assert.deepStrictEqual(params, ["John"]);
+		});
+
+		it("应该在 UPDATE 查询中添加 RETURNING 子句", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set({ name: "Jane" })
+				.where("id", 1)
+				.returning("id", "name")
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `name` = ? WHERE `id` = ? RETURNING `id`, `name`");
+			assert.deepStrictEqual(params, ["Jane", 1]);
+		});
+
+		it("应该在 UPDATE 查询中添加 RETURNING * 子句", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set({ name: "Jane" })
+				.where("id", 1)
+				.returning("*")
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `name` = ? WHERE `id` = ? RETURNING *");
+			assert.deepStrictEqual(params, ["Jane", 1]);
+		});
+
+		it("应该在 DELETE 查询中添加 RETURNING 子句", () => {
+			const { sql, params } = sqlBuilder
+				.delete("users")
+				.where("id", 1)
+				.returning("id", "name")
+				.build();
+
+			assert.strictEqual(sql, "DELETE FROM `users` WHERE `id` = ? RETURNING `id`, `name`");
+			assert.deepStrictEqual(params, [1]);
+		});
+
+		it("应该在 DELETE 查询中添加 RETURNING * 子句", () => {
+			const { sql, params } = sqlBuilder
+				.delete("users")
+				.where("id", 1)
+				.returning("*")
+				.build();
+
+			assert.strictEqual(sql, "DELETE FROM `users` WHERE `id` = ? RETURNING *");
+			assert.deepStrictEqual(params, [1]);
+		});
+
+		it("应该支持带表别名的列名", () => {
+			const { sql, params } = sqlBuilder
+				.insert("users", { name: "John" })
+				.returning("users.id")
+				.build();
+
+			assert.strictEqual(sql, "INSERT INTO `users` (`name`) VALUES (?) RETURNING `users`.`id`");
+			assert.deepStrictEqual(params, ["John"]);
+		});
+
+		it("应该拒绝危险的列名", () => {
+			assert.throws(() => {
+				sqlBuilder
+					.insert("users", { name: "John" })
+					.returning("id; DROP TABLE users--")
+					.build();
+			}, /Potential SQL injection detected in identifier/);
+		});
+
+		it("应该拒绝空的 RETURNING 参数", () => {
+			assert.throws(() => {
+				sqlBuilder.insert("users", { name: "John" }).returning();
+			}, /RETURNING clause requires at least one column/);
+		});
+	});
+
 	describe("upsert() 方法", () => {
 		it("应该构建基本的 UPSERT 查询（默认更新所有插入列）", () => {
 			const { sql, params } = sqlBuilder
