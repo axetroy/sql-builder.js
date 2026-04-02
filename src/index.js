@@ -557,6 +557,154 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 添加 OR WHERE IN 条件
+	 * @param {string} column - 列名，可以使用表别名
+	 * @param {any[]} values - 值数组
+	 * @returns {SQLBuilder}
+	 * @throws {Error} 当 values 不是数组或为空时抛出错误
+	 * @example
+	 * sql.where('type', 'vip').orWhereIn('status', ['active', 'pending']);
+	 * sql.orWhereIn('u.role', ['admin', 'user']); // 使用表别名
+	 */
+	orWhereIn(column, values) {
+		if (!Array.isArray(values) || values.length === 0) {
+			throw new Error("orWhereIn requires a non-empty array");
+		}
+
+		this.#validateIdentifier(column);
+
+		this.#query.where.push({
+			column: this.#escapeIdentifier(column),
+			operator: "IN",
+			value: `(${this.#buildPlaceholders(values.length)})`,
+			connector: "OR",
+		});
+		this.#params.push(...values);
+
+		return this;
+	}
+
+	/**
+	 * 添加 OR WHERE NOT IN 条件
+	 * @param {string} column - 列名，可以使用表别名
+	 * @param {any[]} values - 值数组
+	 * @returns {SQLBuilder}
+	 * @throws {Error} 当 values 不是数组或为空时抛出错误
+	 * @example
+	 * sql.where('type', 'vip').orWhereNotIn('role', ['admin', 'superuser']);
+	 * sql.orWhereNotIn('u.category', [1, 2, 3]); // 使用表别名
+	 */
+	orWhereNotIn(column, values) {
+		if (!Array.isArray(values) || values.length === 0) {
+			throw new Error("orWhereNotIn requires a non-empty array");
+		}
+
+		this.#validateIdentifier(column);
+
+		this.#query.where.push({
+			column: this.#escapeIdentifier(column),
+			operator: "NOT IN",
+			value: `(${this.#buildPlaceholders(values.length)})`,
+			connector: "OR",
+		});
+		this.#params.push(...values);
+
+		return this;
+	}
+
+	/**
+	 * 添加 OR LIKE 条件
+	 * @param {string} column - 列名，可以使用表别名
+	 * @param {string} value - 搜索值
+	 * @param {boolean} [wildcard=true] - 是否自动添加 % 通配符
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.whereLike('name', 'John').orWhereLike('name', 'Jane');
+	 * sql.orWhereLike('u.username', 'admin'); // 使用表别名
+	 */
+	orWhereLike(column, value, wildcard = true) {
+		this.#validateIdentifier(column);
+
+		const searchValue = wildcard ? `%${value}%` : value;
+
+		this.#query.where.push({
+			column: this.#escapeIdentifier(column),
+			operator: "LIKE",
+			value: searchValue,
+			connector: "OR",
+		});
+		this.#params.push(searchValue);
+
+		return this;
+	}
+
+	/**
+	 * 添加 OR BETWEEN 条件
+	 * @param {string} column - 列名，可以使用表别名
+	 * @param {any} start - 范围开始值
+	 * @param {any} end - 范围结束值
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.whereBetween('age', 0, 17).orWhereBetween('age', 66, 100);
+	 * sql.orWhereBetween('u.score', 80, 100); // 使用表别名
+	 */
+	orWhereBetween(column, start, end) {
+		this.#validateIdentifier(column);
+
+		this.#query.where.push({
+			column: this.#escapeIdentifier(column),
+			operator: "BETWEEN",
+			value: `? AND ?`,
+			connector: "OR",
+		});
+		this.#params.push(start, end);
+
+		return this;
+	}
+
+	/**
+	 * 添加 OR IS NULL 条件
+	 * @param {string} column - 列名，可以使用表别名
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.whereNull('deleted_at').orWhereNull('archived_at');
+	 * sql.orWhereNull('u.deleted_at'); // 使用表别名
+	 */
+	orWhereNull(column) {
+		this.#validateIdentifier(column);
+
+		this.#query.where.push({
+			column: this.#escapeIdentifier(column),
+			operator: "IS",
+			value: null,
+			connector: "OR",
+		});
+
+		return this;
+	}
+
+	/**
+	 * 添加 OR IS NOT NULL 条件
+	 * @param {string} column - 列名，可以使用表别名
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.whereNotNull('email').orWhereNotNull('phone');
+	 * sql.orWhereNotNull('u.email'); // 使用表别名
+	 */
+	orWhereNotNull(column) {
+		this.#validateIdentifier(column);
+
+		this.#query.where.push({
+			column: this.#escapeIdentifier(column),
+			operator: "IS NOT",
+			value: null,
+			connector: "OR",
+		});
+
+		return this;
+	}
+
+	/**
 	 * 添加 INNER JOIN 连接
 	 * @param {string} table - 要连接的表名，可以包含别名
 	 * @param {string} first - 第一个连接条件列
