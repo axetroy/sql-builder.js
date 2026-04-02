@@ -447,14 +447,15 @@ declare class SQLBuilder {
 	/**
 	 * 构建 INSERT 查询
 	 * @param table - 表名
-	 * @param data - 要插入的数据对象
+	 * @param data - 要插入的数据对象，或数据对象数组（批量插入）
 	 * @returns SQLBuilder 实例
 	 * @example
 	 * ```typescript
 	 * sql.insert('users', { name: 'John', age: 25, email: 'john@example.com' });
+	 * sql.insert('users', [{ name: 'John', age: 25 }, { name: 'Jane', age: 30 }]);
 	 * ```
 	 */
-	insert(table: string, data: Record<string, any>): this;
+	insert(table: string, data: Record<string, any> | Record<string, any>[]): this;
 
 	/**
 	 * 构建 UPDATE 查询，设置目标表

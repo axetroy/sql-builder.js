@@ -615,6 +615,27 @@ describe("SQLBuilder", () => {
 			assert.deepStrictEqual(params, ["John Doe", "john@example.com", 25]);
 		});
 
+		it("应该构建批量 INSERT 查询", () => {
+			const { sql, params } = sqlBuilder
+				.insert("users", [
+					{ name: "John Doe", email: "john@example.com", age: 25 },
+					{ name: "Jane Doe", email: "jane@example.com", age: 30 },
+				])
+				.build();
+
+			assert.strictEqual(sql, "INSERT INTO `users` (`name`, `email`, `age`) VALUES (?, ?, ?), (?, ?, ?)");
+			assert.deepStrictEqual(params, ["John Doe", "john@example.com", 25, "Jane Doe", "jane@example.com", 30]);
+		});
+
+		it("应该支持单元素数组的 INSERT 查询", () => {
+			const { sql, params } = sqlBuilder
+				.insert("users", [{ name: "John Doe", age: 25 }])
+				.build();
+
+			assert.strictEqual(sql, "INSERT INTO `users` (`name`, `age`) VALUES (?, ?)");
+			assert.deepStrictEqual(params, ["John Doe", 25]);
+		});
+
 		it("应该拒绝危险的列名", () => {
 			assert.throws(() => {
 				sqlBuilder
@@ -633,6 +654,24 @@ describe("SQLBuilder", () => {
 			assert.throws(() => {
 				sqlBuilder.insert("users", null).build();
 			}, /Insert data cannot be empty/);
+		});
+
+		it("应该拒绝空数组", () => {
+			assert.throws(() => {
+				sqlBuilder.insert("users", []).build();
+			}, /Insert data cannot be empty/);
+		});
+
+		it("应该拒绝包含空对象的数组", () => {
+			assert.throws(() => {
+				sqlBuilder.insert("users", [{}, { name: "John" }]).build();
+			}, /Insert data cannot be empty/);
+		});
+
+		it("应该拒绝列名不一致的批量插入数组", () => {
+			assert.throws(() => {
+				sqlBuilder.insert("users", [{ name: "John" }, { email: "jane@example.com" }]).build();
+			}, /All rows in a batch insert must have the same columns/);
 		});
 	});
 
