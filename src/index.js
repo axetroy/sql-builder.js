@@ -52,6 +52,29 @@ class SQLBuilder {
 	static #COUNT_AS_PATTERN = /^COUNT\(\*\)\s+AS\s+(.+)$/i;
 
 	/**
+	 * Static cache for escaped identifier results (shared across all instances)
+	 * @private
+	 * @static
+	 */
+	static #ESCAPE_CACHE = new Map();
+
+	/**
+	 * Static cache for placeholder strings (shared across all instances)
+	 * @private
+	 * @static
+	 */
+	static #PLACEHOLDER_CACHE = new Map();
+
+	/**
+	 * 允许的 SQL 操作符白名单（静态，所有实例共享）
+	 * Allowed SQL operators whitelist (static, shared across all instances)
+	 * @private
+	 * @static
+	 * @type {Set<string>}
+	 */
+	static #ALLOWED_OPERATORS = new Set(["=", "!=", "<>", "<", ">", "<=", ">=", "LIKE", "IN", "NOT IN", "IS", "IS NOT", "BETWEEN"]);
+
+	/**
 	 * @private
 	 */
 	#query = {
@@ -90,13 +113,6 @@ class SQLBuilder {
 	#allowedIdentifiers = new Set();
 
 	/**
-	 * 允许的 SQL 操作符白名单
-	 * @private
-	 * @type {Set<string>}
-	 */
-	#allowedOperators = new Set(["=", "!=", "<>", "<", ">", "<=", ">=", "LIKE", "IN", "NOT IN", "IS", "IS NOT", "BETWEEN"]);
-
-	/**
 	 * 创建 SQLBuilder 实例
 	 * @constructor
 	 * @example
@@ -118,6 +134,10 @@ class SQLBuilder {
 			throw new Error("Identifier must be a string");
 		}
 
+		const cached = SQLBuilder.#ESCAPE_CACHE.get(identifier);
+		if (cached !== undefined) return cached;
+
+		let result;
 		// 允许字母、数字、下划线、点号（用于 table.column）
 		if (!SQLBuilder.#IDENTIFIER_PATTERN.test(identifier)) {
 			// 兼容 COUNT(*) AS total 等函数调用的情况
@@ -125,15 +145,18 @@ class SQLBuilder {
 
 			if (match) {
 				const alias = match[1];
-				return `COUNT(*) AS ${this.#escapeIdentifier(alias)}`;
+				result = `COUNT(*) AS ${this.#escapeIdentifier(alias)}`;
+			} else {
+				throw new Error(`Invalid identifier format: ${identifier}`);
 			}
-
-			throw new Error(`Invalid identifier format: ${identifier}`);
+		} else {
+			// 分割可能有的表别名 (table.column)
+			const parts = identifier.split(".");
+			result = parts.map((part) => `\`${part}\``).join(".");
 		}
 
-		// 分割可能有的表别名 (table.column)
-		const parts = identifier.split(".");
-		return parts.map((part) => `\`${part}\``).join(".");
+		SQLBuilder.#ESCAPE_CACHE.set(identifier, result);
+		return result;
 	}
 
 	/**
@@ -143,11 +166,13 @@ class SQLBuilder {
 	 * @returns {{table: string, alias: string|null}} 解析后的表名和别名
 	 */
 	#parseTableAndAlias(table) {
-		const parts = table.trim().split(/\s+/);
-		const mainTable = parts[0];
-		const alias = parts.length > 1 ? parts[1] : null;
-
-		return { table: mainTable, alias };
+		const trimmed = table.trim();
+		const spaceIdx = trimmed.indexOf(" ");
+		if (spaceIdx === -1) {
+			return { table: trimmed, alias: null };
+		}
+		const alias = trimmed.slice(spaceIdx + 1).trimStart();
+		return { table: trimmed.slice(0, spaceIdx), alias: alias || null };
 	}
 
 	/**
@@ -159,6 +184,11 @@ class SQLBuilder {
 	#validateIdentifier(identifier) {
 		if (typeof identifier !== "string") {
 			throw new Error("Identifier must be a string");
+		}
+
+		// Fast path: already escaped (and thus validated) with no allowlist restriction
+		if (this.#allowedIdentifiers.size === 0 && SQLBuilder.#ESCAPE_CACHE.has(identifier)) {
+			return;
 		}
 
 		// 基本格式验证
@@ -187,7 +217,7 @@ class SQLBuilder {
 	 * @throws {Error} 当操作符不在白名单时抛出错误
 	 */
 	#validateOperator(operator) {
-		if (!this.#allowedOperators.has(operator.toUpperCase())) {
+		if (!SQLBuilder.#ALLOWED_OPERATORS.has(operator.toUpperCase())) {
 			throw new Error(`Unsupported or dangerous operator: ${operator}`);
 		}
 	}
@@ -202,11 +232,12 @@ class SQLBuilder {
 		if (count <= 0) return "";
 		if (count === 1) return "?";
 
-		let placeholders = "?";
-		for (let i = 1; i < count; i++) {
-			placeholders += ", ?";
-		}
-		return placeholders;
+		const cached = SQLBuilder.#PLACEHOLDER_CACHE.get(count);
+		if (cached !== undefined) return cached;
+
+		const result = "?, ".repeat(count - 1) + "?";
+		SQLBuilder.#PLACEHOLDER_CACHE.set(count, result);
+		return result;
 	}
 
 	/**
@@ -1632,11 +1663,12 @@ class SQLBuilder {
 		const parts = [];
 
 		// SELECT 部分（处理总数统计）
-		const columns = [...this.#query.columns];
+		const selectKeyword = `SELECT ${this.#query.distinct ? "DISTINCT " : ""}`;
 		if (this.#query.withTotal) {
-			columns.push(`COUNT(*) OVER() AS ${this.#query.withTotal}`);
+			parts.push(`${selectKeyword}${this.#query.columns.join(", ")}, COUNT(*) OVER() AS ${this.#query.withTotal}`);
+		} else {
+			parts.push(`${selectKeyword}${this.#query.columns.join(", ")}`);
 		}
-		parts.push(`SELECT ${this.#query.distinct ? "DISTINCT " : ""}${columns.join(", ")}`);
 
 		// FROM 部分（处理表别名）
 		const fromTable = this.#query.tableAlias ? `${this.#query.table} ${this.#query.tableAlias}` : this.#query.table;

@@ -101,10 +101,11 @@ benchmark("INSERT query", () => {
 // Benchmark 7: UPDATE query
 benchmark("UPDATE query", () => {
 	const sql = new SQLBuilder();
-	sql.update("users", {
-		name: "Jane Doe",
-		email: "jane@example.com",
-	})
+	sql.update("users")
+		.set({
+			name: "Jane Doe",
+			email: "jane@example.com",
+		})
 		.where("id", 1)
 		.build();
 }, 10000);
