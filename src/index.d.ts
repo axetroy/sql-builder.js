@@ -318,6 +318,33 @@ declare class SQLBuilder {
 	orWhereNotNull(column: string): this;
 
 	/**
+	 * 添加原始 WHERE 条件（高级用户逃生通道）
+	 * @param expression - 原始 SQL 条件表达式（不会被转义，请勿传入用户输入）
+	 * @param params - 与表达式中占位符对应的参数数组
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.whereRaw('age > 18');
+	 * sql.whereRaw('age > ? AND age < ?', [18, 65]);
+	 * sql.whereRaw('JSON_CONTAINS(tags, ?)', ['"admin"']);
+	 * ```
+	 */
+	whereRaw(expression: string, params?: any[]): this;
+
+	/**
+	 * 添加原始 OR WHERE 条件（高级用户逃生通道）
+	 * @param expression - 原始 SQL 条件表达式（不会被转义，请勿传入用户输入）
+	 * @param params - 与表达式中占位符对应的参数数组
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.where('status', 'active').orWhereRaw('age > 60');
+	 * sql.orWhereRaw('score BETWEEN ? AND ?', [80, 100]);
+	 * ```
+	 */
+	orWhereRaw(expression: string, params?: any[]): this;
+
+	/**
 	 * 添加 INNER JOIN 连接
 	 * @param table - 要连接的表名
 	 * @param first - 第一个连接条件列

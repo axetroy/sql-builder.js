@@ -497,6 +497,73 @@ describe("SQLBuilder", () => {
 		});
 	});
 
+	describe("whereRaw() 和 orWhereRaw() 方法", () => {
+		it("应该添加原始 WHERE 条件（无参数）", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereRaw("age > 18").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE age > 18");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该添加原始 WHERE 条件（带参数）", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereRaw("age > ? AND age < ?", [18, 65]).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE age > ? AND age < ?");
+			assert.deepStrictEqual(params, [18, 65]);
+		});
+
+		it("应该与其他 WHERE 条件组合使用（AND）", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").where("status", "active").whereRaw("age > ?", [18]).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `status` = ? AND age > ?");
+			assert.deepStrictEqual(params, ["active", 18]);
+		});
+
+		it("应该添加原始 OR WHERE 条件（无参数）", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").where("status", "active").orWhereRaw("age > 60").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `status` = ? OR age > 60");
+			assert.deepStrictEqual(params, ["active"]);
+		});
+
+		it("应该添加原始 OR WHERE 条件（带参数）", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").where("status", "active").orWhereRaw("score BETWEEN ? AND ?", [80, 100]).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `status` = ? OR score BETWEEN ? AND ?");
+			assert.deepStrictEqual(params, ["active", 80, 100]);
+		});
+
+		it("应该拒绝空字符串表达式", () => {
+			assert.throws(() => {
+				sqlBuilder.whereRaw("");
+			}, /whereRaw requires a non-empty string expression/);
+		});
+
+		it("应该拒绝非字符串表达式", () => {
+			assert.throws(() => {
+				sqlBuilder.whereRaw(null);
+			}, /whereRaw requires a non-empty string expression/);
+		});
+
+		it("应该拒绝占位符数量不匹配的参数", () => {
+			assert.throws(() => {
+				sqlBuilder.whereRaw("age > ? AND age < ?", [18]);
+			}, /whereRaw: expression has 2 placeholder\(s\) but 1 param\(s\) were provided/);
+		});
+
+		it("orWhereRaw 应该拒绝占位符数量不匹配的参数", () => {
+			assert.throws(() => {
+				sqlBuilder.orWhereRaw("score BETWEEN ? AND ?", [80]);
+			}, /orWhereRaw: expression has 2 placeholder\(s\) but 1 param\(s\) were provided/);
+		});
+
+		it("orWhereRaw 应该拒绝空字符串表达式", () => {
+			assert.throws(() => {
+				sqlBuilder.orWhereRaw("");
+			}, /orWhereRaw requires a non-empty string expression/);
+		});
+	});
+
 	describe("join() 方法", () => {
 		it("应该添加 INNER JOIN", () => {
 			const { sql, params } = sqlBuilder.select("*").from("users").join("posts", "users.id", "=", "posts.user_id").build();
