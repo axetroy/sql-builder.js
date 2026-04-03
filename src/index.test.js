@@ -663,6 +663,88 @@ describe("SQLBuilder", () => {
 		});
 	});
 
+	describe("having() 方法", () => {
+		it("应该添加 HAVING 条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").groupBy("category").having("COUNT(*)", ">", 5).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` GROUP BY `category` HAVING COUNT(*) > ?");
+			assert.deepStrictEqual(params, [5]);
+		});
+
+		it("应该支持多个 HAVING 条件", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("orders")
+				.groupBy("status")
+				.having("COUNT(*)", ">", 1)
+				.having("SUM(amount)", ">=", 1000)
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `orders` GROUP BY `status` HAVING COUNT(*) > ? AND SUM(amount) >= ?");
+			assert.deepStrictEqual(params, [1, 1000]);
+		});
+
+		it("应该支持不同的比较操作符", () => {
+			const { sql, params } = sqlBuilder.select("*").from("sales").groupBy("region").having("AVG(price)", "<=", 500).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `sales` GROUP BY `region` HAVING AVG(price) <= ?");
+			assert.deepStrictEqual(params, [500]);
+		});
+
+		it("应该验证 column 必须是非空字符串", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").groupBy("category").having("", ">", 5).build();
+			}, /having requires a non-empty string column/);
+		});
+
+		it("应该验证 operator 必须是合法操作符", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").groupBy("category").having("COUNT(*)", "INVALID", 5).build();
+			}, /Unsupported or dangerous operator/);
+		});
+	});
+
+	describe("havingRaw() 方法", () => {
+		it("应该添加原始 HAVING 条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").groupBy("category").havingRaw("COUNT(*) > 5").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` GROUP BY `category` HAVING COUNT(*) > 5");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该支持带参数的原始 HAVING 条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("orders").groupBy("status").havingRaw("SUM(amount) > ?", [1000]).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `orders` GROUP BY `status` HAVING SUM(amount) > ?");
+			assert.deepStrictEqual(params, [1000]);
+		});
+
+		it("应该支持混合 having 和 havingRaw", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("orders")
+				.groupBy("category")
+				.having("COUNT(*)", ">", 1)
+				.havingRaw("SUM(amount) BETWEEN ? AND ?", [100, 5000])
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `orders` GROUP BY `category` HAVING COUNT(*) > ? AND SUM(amount) BETWEEN ? AND ?");
+			assert.deepStrictEqual(params, [1, 100, 5000]);
+		});
+
+		it("应该验证 expression 必须是非空字符串", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").groupBy("category").havingRaw("").build();
+			}, /havingRaw requires a non-empty string expression/);
+		});
+
+		it("应该验证占位符数量与参数数量匹配", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").groupBy("category").havingRaw("COUNT(*) > ?", []).build();
+			}, /havingRaw: expression has 1 placeholder\(s\) but 0 param\(s\) were provided/);
+		});
+	});
+
 	describe("limit() 和 offset() 方法", () => {
 		it("应该添加 LIMIT 和 OFFSET", () => {
 			const { sql, params } = sqlBuilder.select("*").from("users").limit(10).offset(20).build();
