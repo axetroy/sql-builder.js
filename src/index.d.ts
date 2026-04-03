@@ -94,6 +94,17 @@ declare class SQLBuilder {
 	select(columns?: string | string[]): this;
 
 	/**
+	 * 启用 SELECT DISTINCT 去重查询
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.select('name').distinct().from('users');
+	 * // SELECT DISTINCT `name` FROM `users`
+	 * ```
+	 */
+	distinct(): this;
+
+	/**
 	 * 设置查询的表名
 	 * @param table - 表名
 	 * @returns SQLBuilder 实例
