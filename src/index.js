@@ -727,6 +727,67 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 添加原始 WHERE 条件（高级用户逃生通道）
+	 * 注意：表达式会直接嵌入 SQL，请勿将用户输入传入 expression 参数。
+	 * @param {string} expression - 原始 SQL 条件表达式
+	 * @param {any[]} [params=[]] - 与表达式中占位符对应的参数数组
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.whereRaw('age > 18');
+	 * sql.whereRaw('age > ? AND age < ?', [18, 65]);
+	 * sql.whereRaw('JSON_CONTAINS(tags, ?)', ['"admin"']);
+	 */
+	whereRaw(expression, params = []) {
+		if (typeof expression !== "string" || expression.length === 0) {
+			throw new Error("whereRaw requires a non-empty string expression");
+		}
+
+		const placeholderCount = (expression.match(/\?/g) || []).length;
+		if (placeholderCount !== params.length) {
+			throw new Error(`whereRaw: expression has ${placeholderCount} placeholder(s) but ${params.length} param(s) were provided`);
+		}
+
+		this.#query.where.push({
+			type: "raw",
+			expression,
+			connector: "AND",
+		});
+		this.#params.push(...params);
+
+		return this;
+	}
+
+	/**
+	 * 添加原始 OR WHERE 条件（高级用户逃生通道）
+	 * 注意：表达式会直接嵌入 SQL，请勿将用户输入传入 expression 参数。
+	 * @param {string} expression - 原始 SQL 条件表达式
+	 * @param {any[]} [params=[]] - 与表达式中占位符对应的参数数组
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.where('status', 'active').orWhereRaw('age > 60');
+	 * sql.orWhereRaw('score BETWEEN ? AND ?', [80, 100]);
+	 */
+	orWhereRaw(expression, params = []) {
+		if (typeof expression !== "string" || expression.length === 0) {
+			throw new Error("orWhereRaw requires a non-empty string expression");
+		}
+
+		const placeholderCount = (expression.match(/\?/g) || []).length;
+		if (placeholderCount !== params.length) {
+			throw new Error(`orWhereRaw: expression has ${placeholderCount} placeholder(s) but ${params.length} param(s) were provided`);
+		}
+
+		this.#query.where.push({
+			type: "raw",
+			expression,
+			connector: "OR",
+		});
+		this.#params.push(...params);
+
+		return this;
+	}
+
+	/**
 	 * 添加 INNER JOIN 连接
 	 * @param {string} table - 要连接的表名，可以包含别名
 	 * @param {string} first - 第一个连接条件列
@@ -1353,6 +1414,10 @@ class SQLBuilder {
 				if (condition.type === "group") {
 					const nested = this.#buildWhereConditions(condition.conditions);
 					return `${connector}(${nested})`;
+				}
+
+				if (condition.type === "raw") {
+					return `${connector}${condition.expression}`;
 				}
 
 				const valuePlaceholder =
