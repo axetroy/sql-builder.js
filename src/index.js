@@ -1298,10 +1298,10 @@ class SQLBuilder {
 		// 添加插入参数
 		this.#params.push(...Object.values(insertData));
 
-		// 若是显式对象，添加更新参数（排除 RawExpression）
+		// 若是显式对象，添加更新参数（排除 RawExpression 和 null）
 		if (escapedUpdateData !== null && !Array.isArray(escapedUpdateData)) {
 			Object.values(escapedUpdateData).forEach((value) => {
-				if (!(value instanceof RawExpression)) {
+				if (!(value instanceof RawExpression) && value !== null) {
 					this.#params.push(value);
 				}
 			});
@@ -1425,7 +1425,7 @@ class SQLBuilder {
 		});
 
 		this.#query.set = escapedData;
-		this.#params.push(...entries.filter(([, value]) => !(value instanceof RawExpression)).map(([, value]) => value));
+		this.#params.push(...entries.filter(([, value]) => !(value instanceof RawExpression) && value !== null).map(([, value]) => value));
 		return this;
 	}
 
@@ -1790,6 +1790,9 @@ class SQLBuilder {
 					if (value instanceof RawExpression) {
 						return `${col} = ${value.expression}`;
 					}
+					if (value === null) {
+						return `${col} = NULL`;
+					}
 					return `${col} = ?`;
 				})
 				.join(", ");
@@ -1818,6 +1821,9 @@ class SQLBuilder {
 				const value = this.#query.set[column];
 				if (value instanceof RawExpression) {
 					return `${column} = ${value.expression}`;
+				}
+				if (value === null) {
+					return `${column} = NULL`;
 				}
 				return `${column} = ?`;
 			})
