@@ -969,10 +969,21 @@ describe("SQLBuilder", () => {
 			}, /Update data cannot be empty/);
 		});
 
-		it("应该支持 set(column, rawExpression) 简写形式", () => {
+		it("应该支持 set(column, value) 简写形式（普通值）", () => {
 			const { sql, params } = sqlBuilder
 				.update("users")
-				.set("age", "age + 1")
+				.set("age", 26)
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `age` = ? WHERE `id` = ?");
+			assert.deepStrictEqual(params, [26, 1]);
+		});
+
+		it("应该支持 set(column, raw()) 简写形式（原始表达式）", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set("age", raw("age + 1"))
 				.where("id", 1)
 				.build();
 
@@ -1006,10 +1017,39 @@ describe("SQLBuilder", () => {
 			assert.throws(() => {
 				raw("");
 			}, /Raw expression must be a non-empty string/);
+		});
 
-			assert.throws(() => {
-				sqlBuilder.update("users").set("age", "");
-			}, /Raw expression must be a non-empty string/);
+		it("null 值应生成字面量 NULL 而非占位符", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set({ name: "Jane", deleted_at: null })
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `name` = ?, `deleted_at` = NULL WHERE `id` = ?");
+			assert.deepStrictEqual(params, ["Jane", 1]);
+		});
+
+		it("set() 仅含 null 值时应正常构建", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set({ deleted_at: null })
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `deleted_at` = NULL WHERE `id` = ?");
+			assert.deepStrictEqual(params, [1]);
+		});
+
+		it("应该支持混合 null 值和 raw() 表达式", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set({ age: raw("age + 1"), deleted_at: null, name: "Jane" })
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `age` = age + 1, `deleted_at` = NULL, `name` = ? WHERE `id` = ?");
+			assert.deepStrictEqual(params, ["Jane", 1]);
 		});
 	});
 
@@ -1202,6 +1242,30 @@ describe("SQLBuilder", () => {
 			assert.throws(() => {
 				sqlBuilder.upsert("users", { name: "John" }, { name: undefined }).build();
 			}, /Upsert update data cannot be empty/);
+		});
+
+		it("更新数据中 null 值应生成字面量 NULL 而非占位符", () => {
+			const { sql, params } = sqlBuilder
+				.upsert("users", { name: "John", email: "john@example.com" }, { email: null })
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"INSERT INTO `users` (`name`, `email`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `email` = NULL",
+			);
+			assert.deepStrictEqual(params, ["John", "john@example.com"]);
+		});
+
+		it("更新数据中应支持混合 null 值和普通值", () => {
+			const { sql, params } = sqlBuilder
+				.upsert("users", { name: "John", email: "john@example.com" }, { name: "John Updated", email: null })
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"INSERT INTO `users` (`name`, `email`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `name` = ?, `email` = NULL",
+			);
+			assert.deepStrictEqual(params, ["John", "john@example.com", "John Updated"]);
 		});
 
 		it("应该拒绝危险的表名", () => {
