@@ -793,8 +793,8 @@ class SQLBuilder {
 	 * @returns {SQLBuilder}
 	 * @example
 	 * sql.select('*').from('users')
-	 *   .whereExists(new SQLBuilder().select('1').from('orders').where('orders.user_id', raw('users.id')));
-	 * // SELECT * FROM `users` WHERE EXISTS (SELECT `1` FROM `orders` WHERE `orders`.`user_id` = ?)
+	 *   .whereExists(new SQLBuilder().select('*').from('orders').whereRaw('orders.user_id = users.id'));
+	 * // SELECT * FROM `users` WHERE EXISTS (SELECT * FROM `orders` WHERE orders.user_id = users.id)
 	 */
 	whereExists(subquery) {
 		if (!(subquery instanceof SQLBuilder)) {
@@ -815,8 +815,8 @@ class SQLBuilder {
 	 * @returns {SQLBuilder}
 	 * @example
 	 * sql.select('*').from('users')
-	 *   .whereNotExists(new SQLBuilder().select('1').from('bans').where('bans.user_id', raw('users.id')));
-	 * // SELECT * FROM `users` WHERE NOT EXISTS (SELECT `1` FROM `bans` WHERE `bans`.`user_id` = ?)
+	 *   .whereNotExists(new SQLBuilder().select('*').from('bans').whereRaw('bans.user_id = users.id'));
+	 * // SELECT * FROM `users` WHERE NOT EXISTS (SELECT * FROM `bans` WHERE bans.user_id = users.id)
 	 */
 	whereNotExists(subquery) {
 		if (!(subquery instanceof SQLBuilder)) {
@@ -838,7 +838,8 @@ class SQLBuilder {
 	 * @example
 	 * sql.select('*').from('users')
 	 *   .where('status', 'vip')
-	 *   .orWhereExists(new SQLBuilder().select('1').from('orders').where('orders.user_id', raw('users.id')));
+	 *   .orWhereExists(new SQLBuilder().select('*').from('orders').whereRaw('orders.user_id = users.id'));
+	 * // SELECT * FROM `users` WHERE `status` = ? OR EXISTS (SELECT * FROM `orders` WHERE orders.user_id = users.id)
 	 */
 	orWhereExists(subquery) {
 		if (!(subquery instanceof SQLBuilder)) {
@@ -860,7 +861,8 @@ class SQLBuilder {
 	 * @example
 	 * sql.select('*').from('users')
 	 *   .where('status', 'vip')
-	 *   .orWhereNotExists(new SQLBuilder().select('1').from('bans').where('bans.user_id', raw('users.id')));
+	 *   .orWhereNotExists(new SQLBuilder().select('*').from('bans').whereRaw('bans.user_id = users.id'));
+	 * // SELECT * FROM `users` WHERE `status` = ? OR NOT EXISTS (SELECT * FROM `bans` WHERE bans.user_id = users.id)
 	 */
 	orWhereNotExists(subquery) {
 		if (!(subquery instanceof SQLBuilder)) {
