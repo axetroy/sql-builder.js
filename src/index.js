@@ -788,6 +788,96 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 添加 WHERE EXISTS 子查询存在性判断（AND 连接）
+	 * @param {SQLBuilder} subquery - 子查询 SQLBuilder 实例
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.select('*').from('users')
+	 *   .whereExists(new SQLBuilder().select('*').from('orders').whereRaw('orders.user_id = users.id'));
+	 * // SELECT * FROM `users` WHERE EXISTS (SELECT * FROM `orders` WHERE orders.user_id = users.id)
+	 */
+	whereExists(subquery) {
+		if (!(subquery instanceof SQLBuilder)) {
+			throw new Error("whereExists requires a SQLBuilder instance as subquery");
+		}
+		this.#query.where.push({
+			type: "exists",
+			operator: "EXISTS",
+			subquery,
+			connector: "AND",
+		});
+		return this;
+	}
+
+	/**
+	 * 添加 WHERE NOT EXISTS 子查询存在性判断（AND 连接）
+	 * @param {SQLBuilder} subquery - 子查询 SQLBuilder 实例
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.select('*').from('users')
+	 *   .whereNotExists(new SQLBuilder().select('*').from('bans').whereRaw('bans.user_id = users.id'));
+	 * // SELECT * FROM `users` WHERE NOT EXISTS (SELECT * FROM `bans` WHERE bans.user_id = users.id)
+	 */
+	whereNotExists(subquery) {
+		if (!(subquery instanceof SQLBuilder)) {
+			throw new Error("whereNotExists requires a SQLBuilder instance as subquery");
+		}
+		this.#query.where.push({
+			type: "exists",
+			operator: "NOT EXISTS",
+			subquery,
+			connector: "AND",
+		});
+		return this;
+	}
+
+	/**
+	 * 添加 OR WHERE EXISTS 子查询存在性判断（OR 连接）
+	 * @param {SQLBuilder} subquery - 子查询 SQLBuilder 实例
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.select('*').from('users')
+	 *   .where('status', 'vip')
+	 *   .orWhereExists(new SQLBuilder().select('*').from('orders').whereRaw('orders.user_id = users.id'));
+	 * // SELECT * FROM `users` WHERE `status` = ? OR EXISTS (SELECT * FROM `orders` WHERE orders.user_id = users.id)
+	 */
+	orWhereExists(subquery) {
+		if (!(subquery instanceof SQLBuilder)) {
+			throw new Error("orWhereExists requires a SQLBuilder instance as subquery");
+		}
+		this.#query.where.push({
+			type: "exists",
+			operator: "EXISTS",
+			subquery,
+			connector: "OR",
+		});
+		return this;
+	}
+
+	/**
+	 * 添加 OR WHERE NOT EXISTS 子查询存在性判断（OR 连接）
+	 * @param {SQLBuilder} subquery - 子查询 SQLBuilder 实例
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.select('*').from('users')
+	 *   .where('status', 'vip')
+	 *   .orWhereNotExists(new SQLBuilder().select('*').from('bans').whereRaw('bans.user_id = users.id'));
+	 * // SELECT * FROM `users` WHERE `status` = ? OR NOT EXISTS (SELECT * FROM `bans` WHERE bans.user_id = users.id)
+	 */
+	orWhereNotExists(subquery) {
+		if (!(subquery instanceof SQLBuilder)) {
+			throw new Error("orWhereNotExists requires a SQLBuilder instance as subquery");
+		}
+		this.#query.where.push({
+			type: "exists",
+			operator: "NOT EXISTS",
+			subquery,
+			connector: "OR",
+		});
+		return this;
+	}
+
+	/**
 	 * 添加 INNER JOIN 连接
 	 * @param {string} table - 要连接的表名，可以包含别名
 	 * @param {string} first - 第一个连接条件列
@@ -1480,6 +1570,12 @@ class SQLBuilder {
 
 				if (condition.type === "raw") {
 					return `${connector}${condition.expression}`;
+				}
+
+				if (condition.type === "exists") {
+					const { sql: subSql, params: subParams } = condition.subquery.build();
+					this.#params.push(...subParams);
+					return `${connector}${condition.operator} (${subSql})`;
 				}
 
 				const valuePlaceholder =
