@@ -102,6 +102,30 @@ describe("SQLBuilder", () => {
 		});
 	});
 
+	describe("distinct() 方法", () => {
+		it("应该构建基本的 SELECT DISTINCT 查询", () => {
+			const { sql, params } = sqlBuilder.select("*").distinct().from("users").build();
+
+			assert.strictEqual(sql, "SELECT DISTINCT * FROM `users`");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该支持 SELECT DISTINCT 多列", () => {
+			const { sql, params } = sqlBuilder.select(["name", "email"]).distinct().from("users").build();
+
+			assert.strictEqual(sql, "SELECT DISTINCT `name`, `email` FROM `users`");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该支持 SELECT DISTINCT 带 WHERE 条件", () => {
+			const { sql, params } = sqlBuilder.select("name").distinct().from("users").where("age", ">", 18).build();
+
+			assert.strictEqual(sql, "SELECT DISTINCT `name` FROM `users` WHERE `age` > ?");
+			assert.deepStrictEqual(params, [18]);
+		});
+	});
+
+
 	describe("from() 方法", () => {
 		it("应该设置表名", () => {
 			const { sql } = sqlBuilder.select("*").from("users").build();

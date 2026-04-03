@@ -59,6 +59,7 @@ class SQLBuilder {
 		table: null,
 		tableAlias: null,
 		columns: ["*"],
+		distinct: false,
 		where: [],
 		joins: [],
 		orderBy: [],
@@ -236,6 +237,7 @@ class SQLBuilder {
 			table: null,
 			tableAlias: null,
 			columns: ["*"],
+			distinct: false,
 			where: [],
 			joins: [],
 			orderBy: [],
@@ -277,6 +279,18 @@ class SQLBuilder {
 			return col;
 		});
 
+		return this;
+	}
+
+	/**
+	 * 启用 SELECT DISTINCT 去重查询
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.select('name').distinct().from('users');
+	 * // SELECT DISTINCT `name` FROM `users`
+	 */
+	distinct() {
+		this.#query.distinct = true;
 		return this;
 	}
 
@@ -1375,7 +1389,7 @@ class SQLBuilder {
 		if (this.#query.withTotal) {
 			columns.push(`COUNT(*) OVER() AS ${this.#query.withTotal}`);
 		}
-		parts.push(`SELECT ${columns.join(", ")}`);
+		parts.push(`SELECT ${this.#query.distinct ? "DISTINCT " : ""}${columns.join(", ")}`);
 
 		// FROM 部分（处理表别名）
 		const fromTable = this.#query.tableAlias ? `${this.#query.table} ${this.#query.tableAlias}` : this.#query.table;
