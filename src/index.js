@@ -73,6 +73,7 @@ class SQLBuilder {
 		lock: null,
 		returning: null,
 		insertRows: null,
+		unions: [],
 	};
 
 	/**
@@ -249,6 +250,7 @@ class SQLBuilder {
 			lock: null,
 			returning: null,
 			insertRows: null,
+			unions: [],
 		};
 		this.#params = [];
 		return this;
@@ -1241,6 +1243,44 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 添加 UNION 子句，合并另一个 SELECT 查询的结果（去重）
+	 * @param {SQLBuilder} builder - 另一个 SQLBuilder 实例
+	 * @returns {SQLBuilder}
+	 * @throws {Error} 当 builder 不是 SQLBuilder 实例时抛出错误
+	 * @example
+	 * sqlBuilder.select('id', 'name').from('users').union(
+	 *   new SQLBuilder().select('id', 'name').from('admins')
+	 * );
+	 * // SELECT `id`, `name` FROM `users` UNION SELECT `id`, `name` FROM `admins`
+	 */
+	union(builder) {
+		if (!(builder instanceof SQLBuilder)) {
+			throw new Error("union() requires a SQLBuilder instance");
+		}
+		this.#query.unions.push({ type: "UNION", builder });
+		return this;
+	}
+
+	/**
+	 * 添加 UNION ALL 子句，合并另一个 SELECT 查询的结果（保留重复行）
+	 * @param {SQLBuilder} builder - 另一个 SQLBuilder 实例
+	 * @returns {SQLBuilder}
+	 * @throws {Error} 当 builder 不是 SQLBuilder 实例时抛出错误
+	 * @example
+	 * sqlBuilder.select('id', 'name').from('users').unionAll(
+	 *   new SQLBuilder().select('id', 'name').from('admins')
+	 * );
+	 * // SELECT `id`, `name` FROM `users` UNION ALL SELECT `id`, `name` FROM `admins`
+	 */
+	unionAll(builder) {
+		if (!(builder instanceof SQLBuilder)) {
+			throw new Error("unionAll() requires a SQLBuilder instance");
+		}
+		this.#query.unions.push({ type: "UNION ALL", builder });
+		return this;
+	}
+
+	/**
 	 * 构建 SQL 查询对象
 	 * @returns {{sql: string, params: any[]}} 包含 SQL 语句和参数的对象
 	 * @throws {Error} 当表名为空或查询类型不支持时抛出错误
@@ -1384,9 +1424,19 @@ class SQLBuilder {
 			parts.push(this.#query.lock);
 		}
 
+		let sql = parts.join(" ");
+
+		// UNION / UNION ALL 部分
+		const allParams = [...this.#params];
+		for (const { type, builder } of this.#query.unions) {
+			const unionResult = builder.build();
+			sql += ` ${type} ${unionResult.sql}`;
+			allParams.push(...unionResult.params);
+		}
+
 		return {
-			sql: parts.join(" "),
-			params: this.#params,
+			sql,
+			params: allParams,
 		};
 	}
 

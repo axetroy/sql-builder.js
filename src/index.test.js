@@ -1424,4 +1424,97 @@ describe("SQLBuilder", () => {
 			assert.ok(!sql.includes("FOR UPDATE"));
 		});
 	});
+
+	describe("union() / unionAll() 方法", () => {
+		it("应该构建基本的 UNION 查询", () => {
+			const { sql, params } = sqlBuilder
+				.select(["id", "name"])
+				.from("users")
+				.union(new SQLBuilder().select(["id", "name"]).from("admins"))
+				.build();
+
+			assert.strictEqual(sql, "SELECT `id`, `name` FROM `users` UNION SELECT `id`, `name` FROM `admins`");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该构建基本的 UNION ALL 查询", () => {
+			const { sql, params } = sqlBuilder
+				.select(["id", "name"])
+				.from("users")
+				.unionAll(new SQLBuilder().select(["id", "name"]).from("admins"))
+				.build();
+
+			assert.strictEqual(sql, "SELECT `id`, `name` FROM `users` UNION ALL SELECT `id`, `name` FROM `admins`");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该合并查询参数", () => {
+			const { sql, params } = sqlBuilder
+				.select(["id", "name"])
+				.from("users")
+				.where("age", ">", 18)
+				.union(new SQLBuilder().select(["id", "name"]).from("admins").where("role", "super"))
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"SELECT `id`, `name` FROM `users` WHERE `age` > ? UNION SELECT `id`, `name` FROM `admins` WHERE `role` = ?",
+			);
+			assert.deepStrictEqual(params, [18, "super"]);
+		});
+
+		it("应该支持多个 UNION 子句", () => {
+			const { sql, params } = sqlBuilder
+				.select(["id", "name"])
+				.from("users")
+				.union(new SQLBuilder().select(["id", "name"]).from("admins"))
+				.union(new SQLBuilder().select(["id", "name"]).from("moderators"))
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"SELECT `id`, `name` FROM `users` UNION SELECT `id`, `name` FROM `admins` UNION SELECT `id`, `name` FROM `moderators`",
+			);
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该支持混合 UNION 和 UNION ALL", () => {
+			const { sql, params } = sqlBuilder
+				.select("id")
+				.from("users")
+				.union(new SQLBuilder().select("id").from("admins"))
+				.unionAll(new SQLBuilder().select("id").from("guests"))
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"SELECT `id` FROM `users` UNION SELECT `id` FROM `admins` UNION ALL SELECT `id` FROM `guests`",
+			);
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该拒绝非 SQLBuilder 实例（union）", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").union("not a builder");
+			}, /union\(\) requires a SQLBuilder instance/);
+		});
+
+		it("应该拒绝非 SQLBuilder 实例（unionAll）", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").unionAll(null);
+			}, /unionAll\(\) requires a SQLBuilder instance/);
+		});
+
+		it("reset() 应该清除 UNION 状态", () => {
+			sqlBuilder
+				.select("*")
+				.from("users")
+				.union(new SQLBuilder().select("*").from("admins"));
+
+			sqlBuilder.reset();
+			const { sql } = sqlBuilder.select("*").from("users").build();
+
+			assert.ok(!sql.includes("UNION"));
+		});
+	});
 });
