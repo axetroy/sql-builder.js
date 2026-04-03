@@ -969,6 +969,68 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 添加 HAVING 条件
+	 * @param {string} column - 列名或聚合表达式（例如 'COUNT(*)'）
+	 * @param {string} operator - 比较操作符
+	 * @param {any} value - 比较值
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.groupBy('category').having('COUNT(*)', '>', 5);
+	 * sql.groupBy('status').having('SUM(amount)', '>=', 1000);
+	 */
+	having(column, operator, value) {
+		if (typeof column !== "string" || column.length === 0) {
+			throw new Error("having requires a non-empty string column");
+		}
+
+		this.#validateOperator(operator);
+
+		this.#query.having.push({
+			type: "condition",
+			column,
+			operator,
+			value,
+			connector: "AND",
+		});
+
+		if (operator.toUpperCase() !== "IS" && operator.toUpperCase() !== "IS NOT") {
+			this.#params.push(value);
+		}
+
+		return this;
+	}
+
+	/**
+	 * 添加原始 HAVING 条件（高级用户逃生通道）
+	 * 注意：表达式会直接嵌入 SQL，请勿将用户输入传入 expression 参数。
+	 * @param {string} expression - 原始 SQL 条件表达式
+	 * @param {any[]} [params=[]] - 与表达式中占位符对应的参数数组
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.groupBy('category').havingRaw('COUNT(*) > 5');
+	 * sql.groupBy('status').havingRaw('SUM(amount) > ?', [1000]);
+	 */
+	havingRaw(expression, params = []) {
+		if (typeof expression !== "string" || expression.length === 0) {
+			throw new Error("havingRaw requires a non-empty string expression");
+		}
+
+		const placeholderCount = (expression.match(/\?/g) || []).length;
+		if (placeholderCount !== params.length) {
+			throw new Error(`havingRaw: expression has ${placeholderCount} placeholder(s) but ${params.length} param(s) were provided`);
+		}
+
+		this.#query.having.push({
+			type: "raw",
+			expression,
+			connector: "AND",
+		});
+		this.#params.push(...params);
+
+		return this;
+	}
+
+	/**
 	 * 设置查询限制数量
 	 * @param {number} number - 限制数量
 	 * @returns {SQLBuilder}
@@ -1432,6 +1494,30 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 构建 HAVING 条件字符串
+	 * @private
+	 * @param {Array} conditions - HAVING 条件数组
+	 * @returns {string} HAVING 条件字符串
+	 */
+	#buildHavingConditions(conditions) {
+		return conditions
+			.map((condition, index) => {
+				const connector = index === 0 ? "" : condition.connector + " ";
+
+				if (condition.type === "raw") {
+					return `${connector}${condition.expression}`;
+				}
+
+				const valuePlaceholder =
+					condition.operator.toUpperCase() === "IS" || condition.operator.toUpperCase() === "IS NOT"
+						? "NULL"
+						: "?";
+				return `${connector}${condition.column} ${condition.operator} ${valuePlaceholder}`;
+			})
+			.join(" ");
+	}
+
+	/**
 	 * 构建 RETURNING 子句字符串（不含前缀空格）
 	 * @private
 	 * @returns {string|null} RETURNING 子句字符串，若无 RETURNING 则返回 null
@@ -1481,6 +1567,11 @@ class SQLBuilder {
 		// GROUP BY 部分
 		if (this.#query.groupBy.length > 0) {
 			parts.push(`GROUP BY ${this.#query.groupBy.join(", ")}`);
+		}
+
+		// HAVING 部分
+		if (this.#query.having.length > 0) {
+			parts.push(`HAVING ${this.#buildHavingConditions(this.#query.having)}`);
 		}
 
 		// ORDER BY 部分
