@@ -969,10 +969,21 @@ describe("SQLBuilder", () => {
 			}, /Update data cannot be empty/);
 		});
 
-		it("应该支持 set(column, rawExpression) 简写形式", () => {
+		it("应该支持 set(column, value) 简写形式（普通值）", () => {
 			const { sql, params } = sqlBuilder
 				.update("users")
-				.set("age", "age + 1")
+				.set("age", 26)
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `age` = ? WHERE `id` = ?");
+			assert.deepStrictEqual(params, [26, 1]);
+		});
+
+		it("应该支持 set(column, raw()) 简写形式（原始表达式）", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set("age", raw("age + 1"))
 				.where("id", 1)
 				.build();
 
@@ -1005,10 +1016,6 @@ describe("SQLBuilder", () => {
 		it("应该拒绝空的原始表达式字符串", () => {
 			assert.throws(() => {
 				raw("");
-			}, /Raw expression must be a non-empty string/);
-
-			assert.throws(() => {
-				sqlBuilder.update("users").set("age", "");
 			}, /Raw expression must be a non-empty string/);
 		});
 

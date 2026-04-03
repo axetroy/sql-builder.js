@@ -604,17 +604,19 @@ declare class SQLBuilder {
 	set(data: Record<string, any | RawExpression>): this;
 
 	/**
-	 * 设置 UPDATE 查询的更新数据（单列原始表达式简写形式）
+	 * 设置 UPDATE 查询的更新数据（单列简写形式）
 	 * @param column - 要更新的列名
-	 * @param rawExpression - 原始 SQL 表达式（直接嵌入 SQL，不会参数化，请勿传入用户输入）
+	 * @param value - 列的值（普通值或 RawExpression）；如需嵌入原始 SQL 表达式，请传入 raw() 的返回值
 	 * @returns SQLBuilder 实例
 	 * @example
 	 * ```typescript
-	 * sql.update('users').set('age', 'age + 1').where('id', 1);
+	 * sql.update('users').set('age', 26).where('id', 1);
+	 * // UPDATE `users` SET `age` = ? WHERE `id` = ?
+	 * sql.update('users').set('age', raw('age + 1')).where('id', 1);
 	 * // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
 	 * ```
 	 */
-	set(column: string, rawExpression: string): this;
+	set(column: string, value: any | RawExpression): this;
 
 	/**
 	 * 为 SELECT 查询添加行级锁定子句
