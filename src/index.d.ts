@@ -345,6 +345,58 @@ declare class SQLBuilder {
 	orWhereRaw(expression: string, params?: any[]): this;
 
 	/**
+	 * 添加 WHERE EXISTS 子查询存在性判断（AND 连接）
+	 * @param subquery - 子查询 SQLBuilder 实例
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.select('*').from('users')
+	 *   .whereExists(new SQLBuilder().select('1').from('orders').whereRaw('orders.user_id = users.id'));
+	 * // SELECT * FROM `users` WHERE EXISTS (SELECT `1` FROM `orders` WHERE orders.user_id = users.id)
+	 * ```
+	 */
+	whereExists(subquery: SQLBuilder): this;
+
+	/**
+	 * 添加 WHERE NOT EXISTS 子查询存在性判断（AND 连接）
+	 * @param subquery - 子查询 SQLBuilder 实例
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.select('*').from('users')
+	 *   .whereNotExists(new SQLBuilder().select('1').from('bans').whereRaw('bans.user_id = users.id'));
+	 * // SELECT * FROM `users` WHERE NOT EXISTS (SELECT `1` FROM `bans` WHERE bans.user_id = users.id)
+	 * ```
+	 */
+	whereNotExists(subquery: SQLBuilder): this;
+
+	/**
+	 * 添加 OR WHERE EXISTS 子查询存在性判断（OR 连接）
+	 * @param subquery - 子查询 SQLBuilder 实例
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.select('*').from('users')
+	 *   .where('status', 'vip')
+	 *   .orWhereExists(new SQLBuilder().select('1').from('orders').whereRaw('orders.user_id = users.id'));
+	 * ```
+	 */
+	orWhereExists(subquery: SQLBuilder): this;
+
+	/**
+	 * 添加 OR WHERE NOT EXISTS 子查询存在性判断（OR 连接）
+	 * @param subquery - 子查询 SQLBuilder 实例
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.select('*').from('users')
+	 *   .where('status', 'vip')
+	 *   .orWhereNotExists(new SQLBuilder().select('1').from('bans').whereRaw('bans.user_id = users.id'));
+	 * ```
+	 */
+	orWhereNotExists(subquery: SQLBuilder): this;
+
+	/**
 	 * 添加 INNER JOIN 连接
 	 * @param table - 要连接的表名
 	 * @param first - 第一个连接条件列

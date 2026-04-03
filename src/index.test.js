@@ -564,6 +564,75 @@ describe("SQLBuilder", () => {
 		});
 	});
 
+	describe("whereExists() 和 whereNotExists() 方法", () => {
+		it("应该添加 WHERE EXISTS 子查询条件", () => {
+			const subquery = new SQLBuilder().select("*").from("orders").whereRaw("orders.user_id = users.id");
+			const { sql, params } = sqlBuilder.select("*").from("users").whereExists(subquery).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE EXISTS (SELECT * FROM `orders` WHERE orders.user_id = users.id)");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该添加 WHERE NOT EXISTS 子查询条件", () => {
+			const subquery = new SQLBuilder().select("*").from("bans").whereRaw("bans.user_id = users.id");
+			const { sql, params } = sqlBuilder.select("*").from("users").whereNotExists(subquery).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE NOT EXISTS (SELECT * FROM `bans` WHERE bans.user_id = users.id)");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("子查询参数应该合并到父查询参数中", () => {
+			const subquery = new SQLBuilder().select("*").from("orders").where("status", "paid").whereRaw("orders.user_id = users.id");
+			const { sql, params } = sqlBuilder.select("*").from("users").where("active", 1).whereExists(subquery).build();
+
+			assert.strictEqual(
+				sql,
+				"SELECT * FROM `users` WHERE `active` = ? AND EXISTS (SELECT * FROM `orders` WHERE `status` = ? AND orders.user_id = users.id)"
+			);
+			assert.deepStrictEqual(params, [1, "paid"]);
+		});
+
+		it("应该支持 OR WHERE EXISTS（orWhereExists）", () => {
+			const subquery = new SQLBuilder().select("*").from("orders").whereRaw("orders.user_id = users.id");
+			const { sql, params } = sqlBuilder.select("*").from("users").where("status", "vip").orWhereExists(subquery).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `status` = ? OR EXISTS (SELECT * FROM `orders` WHERE orders.user_id = users.id)");
+			assert.deepStrictEqual(params, ["vip"]);
+		});
+
+		it("应该支持 OR WHERE NOT EXISTS（orWhereNotExists）", () => {
+			const subquery = new SQLBuilder().select("*").from("bans").whereRaw("bans.user_id = users.id");
+			const { sql, params } = sqlBuilder.select("*").from("users").where("status", "vip").orWhereNotExists(subquery).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `status` = ? OR NOT EXISTS (SELECT * FROM `bans` WHERE bans.user_id = users.id)");
+			assert.deepStrictEqual(params, ["vip"]);
+		});
+
+		it("应该拒绝非 SQLBuilder 实例（whereExists）", () => {
+			assert.throws(() => {
+				sqlBuilder.whereExists("SELECT 1 FROM orders");
+			}, /whereExists requires a SQLBuilder instance as subquery/);
+		});
+
+		it("应该拒绝非 SQLBuilder 实例（whereNotExists）", () => {
+			assert.throws(() => {
+				sqlBuilder.whereNotExists(null);
+			}, /whereNotExists requires a SQLBuilder instance as subquery/);
+		});
+
+		it("应该拒绝非 SQLBuilder 实例（orWhereExists）", () => {
+			assert.throws(() => {
+				sqlBuilder.orWhereExists({});
+			}, /orWhereExists requires a SQLBuilder instance as subquery/);
+		});
+
+		it("应该拒绝非 SQLBuilder 实例（orWhereNotExists）", () => {
+			assert.throws(() => {
+				sqlBuilder.orWhereNotExists(42);
+			}, /orWhereNotExists requires a SQLBuilder instance as subquery/);
+		});
+	});
+
 	describe("join() 方法", () => {
 		it("应该添加 INNER JOIN", () => {
 			const { sql, params } = sqlBuilder.select("*").from("users").join("posts", "users.id", "=", "posts.user_id").build();
