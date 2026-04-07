@@ -149,10 +149,19 @@ Use `raw()` to embed a SQL expression directly in a `SET` clause — for example
 ```js
 import { SQLBuilder, raw } from "sql-builder.js";
 
-// Shorthand: set(column, expression)
+// Shorthand: set(column, value) — plain value
 const { sql, params } = sqlBuilder
   .update("users")
-  .set("age", "age + 1")
+  .set("age", 26)
+  .where("id", 1)
+  .build();
+// UPDATE `users` SET `age` = ? WHERE `id` = ?
+// params: [26, 1]
+
+// Shorthand: set(column, raw()) — raw SQL expression
+sqlBuilder
+  .update("users")
+  .set("age", raw("age + 1"))
   .where("id", 1)
   .build();
 // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
@@ -173,6 +182,15 @@ sqlBuilder
   .where("id", 1)
   .build();
 // UPDATE `users` SET `age` = age + 1, `name` = ? WHERE `id` = ?
+// params: ['Jane', 1]
+
+// Setting a column to NULL
+sqlBuilder
+  .update("users")
+  .set({ name: "Jane", deleted_at: null })
+  .where("id", 1)
+  .build();
+// UPDATE `users` SET `name` = ?, `deleted_at` = NULL WHERE `id` = ?
 // params: ['Jane', 1]
 ```
 
@@ -535,8 +553,8 @@ Use the `raw()` helper to embed a SQL fragment verbatim in an `UPDATE` `SET` cla
 ```js
 import { SQLBuilder, raw } from "sql-builder.js";
 
-// Shorthand: set(column, expression)
-sqlBuilder.update("users").set("views", "views + 1").where("id", 1).build();
+// Shorthand: set(column, raw())
+sqlBuilder.update("users").set("views", raw("views + 1")).where("id", 1).build();
 // UPDATE `users` SET `views` = views + 1 WHERE `id` = ?
 
 // Object form
@@ -731,13 +749,13 @@ Sets the columns and values for an UPDATE query.
   - `data` (object): Object with column names as keys and new values. Values may be plain values (parameterized) or `RawExpression` instances (embedded verbatim).
 - **Returns:** `SQLBuilder` (chainable)
 
-#### `set(column, rawExpression)`
+#### `set(column, value)`
 
-Shorthand for updating a single column with a raw SQL expression.
+Shorthand for updating a single column.
 
 - **Parameters:**
   - `column` (string): Column name to update
-  - `rawExpression` (string): SQL expression to embed verbatim (e.g. `"age + 1"`). **Do not pass user input.**
+  - `value` (any | RawExpression): The value to set. Use `raw()` to embed a verbatim SQL expression (e.g. `raw("age + 1")`). Pass `null` to generate a literal `NULL`.
 - **Returns:** `SQLBuilder` (chainable)
 
 #### `raw(expression)`

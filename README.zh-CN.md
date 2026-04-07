@@ -131,7 +131,8 @@ const { sql, params } = sqlBuilder
 
 ```js
 const { sql, params } = sqlBuilder
-  .update("users", {
+  .update("users")
+  .set({
     name: "李四",
     age: 26
   })
@@ -148,9 +149,19 @@ const { sql, params } = sqlBuilder
 ```js
 import { SQLBuilder, raw } from "sql-builder.js";
 
-// 简写形式：update(table, column, expression)
+// 简写形式：set(column, value) — 普通值
 const { sql, params } = sqlBuilder
-  .update("users", "age", "age + 1")
+  .update("users")
+  .set("age", 26)
+  .where("id", 1)
+  .build();
+// UPDATE `users` SET `age` = ? WHERE `id` = ?
+// params: [26, 1]
+
+// 简写形式：set(column, raw()) — 原始 SQL 表达式
+sqlBuilder
+  .update("users")
+  .set("age", raw("age + 1"))
   .where("id", 1)
   .build();
 // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
@@ -158,17 +169,28 @@ const { sql, params } = sqlBuilder
 
 // 对象形式，使用 raw()
 sqlBuilder
-  .update("users", { age: raw("age + 1") })
+  .update("users")
+  .set({ age: raw("age + 1") })
   .where("id", 1)
   .build();
 // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
 
 // 混合使用原始表达式和参数化值
 sqlBuilder
-  .update("users", { age: raw("age + 1"), name: "李四" })
+  .update("users")
+  .set({ age: raw("age + 1"), name: "李四" })
   .where("id", 1)
   .build();
 // UPDATE `users` SET `age` = age + 1, `name` = ? WHERE `id` = ?
+// params: ['李四', 1]
+
+// 将列设置为 NULL
+sqlBuilder
+  .update("users")
+  .set({ name: "李四", deleted_at: null })
+  .where("id", 1)
+  .build();
+// UPDATE `users` SET `name` = ?, `deleted_at` = NULL WHERE `id` = ?
 // params: ['李四', 1]
 ```
 
@@ -531,17 +553,18 @@ sqlBuilder.withTotal("total_rows");
 ```js
 import { SQLBuilder, raw } from "sql-builder.js";
 
-// 简写形式：update(table, column, expression)
-sqlBuilder.update("users", "views", "views + 1").where("id", 1).build();
+// 简写形式：set(column, raw())
+sqlBuilder.update("users").set("views", raw("views + 1")).where("id", 1).build();
 // UPDATE `users` SET `views` = views + 1 WHERE `id` = ?
 
 // 对象形式
-sqlBuilder.update("users", { score: raw("score * 2") }).where("id", 1).build();
+sqlBuilder.update("users").set({ score: raw("score * 2") }).where("id", 1).build();
 // UPDATE `users` SET `score` = score * 2 WHERE `id` = ?
 
 // 混合使用：原始表达式与参数化值共存
 sqlBuilder
-  .update("users", { age: raw("age + 1"), name: "李四" })
+  .update("users")
+  .set({ age: raw("age + 1"), name: "李四" })
   .where("id", 1)
   .build();
 // UPDATE `users` SET `age` = age + 1, `name` = ? WHERE `id` = ?
@@ -710,28 +733,34 @@ const sqlBuilder = new SQLBuilder();
   - `data`（object）：以列名为键、插入值为值的对象
 - **返回值：** `SQLBuilder`（可链式调用）
 
-#### `update(table, data)`
+#### `update(table)`
 
 创建 UPDATE 查询。**需要 WHERE 子句。**
 
 - **参数：**
   - `table`（string）：表名
-  - `data`（object）：以列名为键、新值为值的对象，值可以是普通值（参数化）或 `RawExpression` 实例（直接嵌入）
 - **返回值：** `SQLBuilder`（可链式调用）
 
-#### `update(table, column, rawExpression)`
+#### `set(data)`
 
-更新单列的简写形式，使用原始 SQL 表达式。
+设置 UPDATE 查询的列和值。
 
 - **参数：**
-  - `table`（string）：表名
+  - `data`（object）：以列名为键、新值为值的对象，值可以是普通值（参数化）或 `RawExpression` 实例（直接嵌入）。传入 `null` 将生成字面量 `NULL`。
+- **返回值：** `SQLBuilder`（可链式调用）
+
+#### `set(column, value)`
+
+更新单列的简写形式。
+
+- **参数：**
   - `column`（string）：要更新的列名
-  - `rawExpression`（string）：直接嵌入 SQL 的表达式（如 `"age + 1"`）。**请勿传入用户输入。**
+  - `value`（any | RawExpression）：列的值。使用 `raw()` 可嵌入原始 SQL 表达式（如 `raw("age + 1")`）。传入 `null` 将生成字面量 `NULL`。
 - **返回值：** `SQLBuilder`（可链式调用）
 
 #### `raw(expression)`
 
-创建一个 `RawExpression`，可作为 `update()` 的值使用。表达式会直接嵌入 `SET` 子句——**不会**被参数化。
+创建一个 `RawExpression`，可作为 `set()` 的值使用。表达式会直接嵌入 `SET` 子句——**不会**被参数化。
 
 - **参数：**
   - `expression`（string）：非空 SQL 表达式。**请勿传入用户输入。**
@@ -740,7 +769,7 @@ const sqlBuilder = new SQLBuilder();
 ```js
 import { raw } from "sql-builder.js";
 
-sqlBuilder.update("users", { age: raw("age + 1") }).where("id", 1).build();
+sqlBuilder.update("users").set({ age: raw("age + 1") }).where("id", 1).build();
 // UPDATE `users` SET `age` = age + 1 WHERE `id` = ?
 ```
 
@@ -1028,11 +1057,11 @@ const sql = `SELECT * FROM users WHERE username = '${userInput}'`;
 
 ```js
 // ❌ 会抛出错误
-sqlBuilder.update("users", { status: "inactive" }).build();
+sqlBuilder.update("users").set({ status: "inactive" }).build();
 // Error: UPDATE query requires WHERE clause
 
 // ✅ 安全写法
-sqlBuilder.update("users", { status: "inactive" })
+sqlBuilder.update("users").set({ status: "inactive" })
   .where("last_login", "<", "2020-01-01")
   .build();
 ```
@@ -1135,7 +1164,8 @@ const result: { sql: string; params: any[] } = sqlBuilder
 
 // raw() 具有完整类型支持
 const update = sqlBuilder
-  .update("users", { age: raw("age + 1"), name: "李四" })
+  .update("users")
+  .set({ age: raw("age + 1"), name: "李四" })
   .where("id", 1)
   .build();
 ```
