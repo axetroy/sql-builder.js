@@ -34,14 +34,18 @@ import { SQLBuilder } from "sql-builder.js";
 const sqlBuilder = new SQLBuilder();
 
 // 构建一个简单的 SELECT 查询
-const { sql, params } = sqlBuilder
+const result = sqlBuilder
   .select("*")
   .from("users")
   .where("age", ">", 18)
   .build();
 
-console.log(sql);    // SELECT * FROM `users` WHERE `age` > ?
-console.log(params); // [18]
+console.log(result.sql);         // SELECT * FROM `users` WHERE `age` > ?
+console.log(result.params);      // [18]
+console.log(result.toString());  // SELECT * FROM `users` WHERE `age` > 18
+
+// 解构方式同样有效
+const { sql, params } = result;
 ```
 
 ## 目录
@@ -951,9 +955,12 @@ sqlBuilder.update("users").set({ age: raw("age + 1") }).where("id", 1).build();
 
 #### `build()`
 
-构建并返回最终的 SQL 查询。
+构建并返回最终的 SQL 查询，以 `BuilderResult` 对象的形式返回。
 
-- **返回值：** `{ sql: string, params: any[] }` - 包含 SQL 字符串和参数数组的对象
+- **返回值：** `BuilderResult` — 对象包含：
+  - `sql: string` — 含 `?` 占位符的 SQL 字符串
+  - `params: any[]` — 参数数组
+  - `toString(): string` — 返回将参数安全内联后的完整 SQL（仅用于调试，不可用于执行）
 - **抛出：** 如果缺少表名或查询无效则抛出错误
 
 #### `reset()`
@@ -972,9 +979,9 @@ sqlBuilder.update("users").set({ age: raw("age + 1") }).where("id", 1).build();
 
 #### `toString()`
 
-返回带有参数替换的格式化 SQL 字符串（仅用于调试，不可用于执行）。
+返回将参数安全替换后的格式化 SQL 字符串（仅用于调试，不可用于执行）。等价于调用 `build().toString()`。
 
-- **返回值：** `string` - 格式化后的 SQL 字符串
+- **返回值：** `string` - 内联参数后的格式化 SQL 字符串
 
 #### `getParams()`
 
@@ -1034,7 +1041,10 @@ sqlBuilder.update("users").set({ age: raw("age + 1") }).where("id", 1).build();
 
 构建完整的事务 SQL。
 
-- **返回值：** `{ sql: string, params: any[] }` — 完整的事务 SQL（包含 `BEGIN`/`COMMIT`）及所有合并后的参数
+- **返回值：** `BuilderResult` — 对象包含：
+  - `sql: string` — 完整的事务 SQL（包含 `BEGIN`/`COMMIT`）含 `?` 占位符
+  - `params: any[]` — 所有合并后的参数
+  - `toString(): string` — 返回将参数安全内联后的完整事务 SQL（仅用于调试）
 
 ## 最佳实践
 

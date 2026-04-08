@@ -1,4 +1,56 @@
 /**
+ * 格式化 SQL 字符串，将参数安全地替换到 SQL 中（仅用于调试）
+ * @param {string} sql - SQL 语句
+ * @param {any[]} params - 参数数组
+ * @returns {string} 格式化后的 SQL 字符串
+ */
+function formatSQL(sql, params) {
+	let formattedSQL = sql;
+	let paramIndex = 0;
+
+	// 安全地替换参数
+	formattedSQL = formattedSQL.replace(/\?/g, () => {
+		if (paramIndex >= params.length) return "?";
+		const param = params[paramIndex++];
+		return typeof param === "string" ? `'${param.replace(/'/g, "''")}'` : param;
+	});
+
+	return formattedSQL;
+}
+
+/**
+ * SQL 构建结果
+ * 包含生成的 SQL 语句和参数，toString() 方法将参数安全地内联到 SQL 中（仅用于调试）
+ * @class BuilderResult
+ * @example
+ * const result = sqlBuilder.select('*').from('users').where('age', '>', 18).build();
+ * console.log(result.sql);    // SELECT * FROM `users` WHERE `age` > ?
+ * console.log(result.params); // [18]
+ * console.log(result.toString()); // SELECT * FROM `users` WHERE `age` > 18
+ */
+class BuilderResult {
+	/**
+	 * @param {string} sql - 生成的 SQL 语句（含占位符 ?）
+	 * @param {any[]} params - 查询参数数组
+	 */
+	constructor(sql, params) {
+		/** 生成的 SQL 语句 */
+		this.sql = sql;
+		/** 查询参数数组 */
+		this.params = params;
+	}
+
+	/**
+	 * 返回将参数安全地内联后的完整 SQL 字符串（仅用于调试，不应用于实际查询）
+	 * 字符串参数会被单引号包裹，并对内部单引号进行转义，防止 SQL 注入
+	 * @returns {string} 格式化的 SQL 字符串
+	 */
+	toString() {
+		return formatSQL(this.sql, this.params);
+	}
+}
+
+/**
  * 原始 SQL 表达式包装器，用于在 UPDATE 语句中嵌入不参数化的表达式
  * @class RawExpression
  * @example
@@ -1733,16 +1785,13 @@ class SQLBuilder {
 			allParams.push(...unionResult.params);
 		}
 
-		return {
-			sql,
-			params: allParams,
-		};
+		return new BuilderResult(sql, allParams);
 	}
 
 	/**
 	 * 构建 INSERT 查询
 	 * @private
-	 * @returns {{sql: string, params: any[]}}
+	 * @returns {BuilderResult}
 	 */
 	#buildInsert() {
 		const columns = Object.keys(this.#query.values);
@@ -1760,10 +1809,7 @@ class SQLBuilder {
 		const returning = this.#buildReturningClause();
 		if (returning) parts.push(returning);
 
-		return {
-			sql: parts.join(" "),
-			params: this.#params,
-		};
+		return new BuilderResult(parts.join(" "), this.#params);
 	}
 
 	/**
@@ -1801,16 +1847,13 @@ class SQLBuilder {
 
 		const sql = `INSERT INTO ${this.#query.table} (${columns.join(", ")}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updateClauses}`;
 
-		return {
-			sql,
-			params: this.#params,
-		};
+		return new BuilderResult(sql, this.#params);
 	}
 
 	/**
 	 * 构建 UPDATE 查询
 	 * @private
-	 * @returns {{sql: string, params: any[]}}
+	 * @returns {BuilderResult}
 	 */
 	#buildUpdate() {
 		if (Object.keys(this.#query.set).length === 0) {
@@ -1841,16 +1884,13 @@ class SQLBuilder {
 		const returning = this.#buildReturningClause();
 		if (returning) parts.push(returning);
 
-		return {
-			sql: parts.join(" "),
-			params: this.#params,
-		};
+		return new BuilderResult(parts.join(" "), this.#params);
 	}
 
 	/**
 	 * 构建 DELETE 查询
 	 * @private
-	 * @returns {{sql: string, params: any[]}}
+	 * @returns {BuilderResult}
 	 */
 	#buildDelete() {
 		const parts = [`DELETE FROM ${this.#query.table}`];
@@ -1864,10 +1904,7 @@ class SQLBuilder {
 		const returning = this.#buildReturningClause();
 		if (returning) parts.push(returning);
 
-		return {
-			sql: parts.join(" "),
-			params: this.#params,
-		};
+		return new BuilderResult(parts.join(" "), this.#params);
 	}
 
 	/**
@@ -1878,29 +1915,7 @@ class SQLBuilder {
 	 * // "SELECT * FROM `users` WHERE `age` > 18 AND `status` = 'active'"
 	 */
 	toString() {
-		const { sql, params } = this.build();
-		return this.#formatSQL(sql, params);
-	}
-
-	/**
-	 * 格式化 SQL 字符串，将参数替换到 SQL 中（仅用于调试）
-	 * @private
-	 * @param {string} sql - SQL 语句
-	 * @param {any[]} params - 参数数组
-	 * @returns {string} 格式化后的 SQL 字符串
-	 */
-	#formatSQL(sql, params) {
-		let formattedSQL = sql;
-		let paramIndex = 0;
-
-		// 安全地替换参数
-		formattedSQL = formattedSQL.replace(/\?/g, () => {
-			if (paramIndex >= params.length) return "?";
-			const param = params[paramIndex++];
-			return typeof param === "string" ? `'${param.replace(/'/g, "''")}'` : param;
-		});
-
-		return formattedSQL;
+		return this.build().toString();
 	}
 
 	/**
@@ -2058,9 +2073,10 @@ class Transaction {
 
 	/**
 	 * 构建事务 SQL
-	 * @returns {{sql: string, params: any[]}} 包含完整事务 SQL 和参数的对象
+	 * @returns {BuilderResult} 包含完整事务 SQL 和参数的对象
 	 * @example
 	 * const { sql, params } = transaction.build();
+	 * console.log(transaction.build().toString()); // 格式化后的完整事务 SQL
 	 */
 	build() {
 		const parts = [this.#beginType ? `BEGIN ${this.#beginType}` : "BEGIN"];
@@ -2082,12 +2098,9 @@ class Transaction {
 
 		parts.push("COMMIT");
 
-		return {
-			sql: parts.join(";\n") + ";",
-			params,
-		};
+		return new BuilderResult(parts.join(";\n") + ";", params);
 	}
 }
 
-export { SQLBuilder, Transaction, RawExpression, raw };
+export { SQLBuilder, Transaction, RawExpression, BuilderResult, raw };
 export default SQLBuilder;
