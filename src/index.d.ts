@@ -11,7 +11,7 @@
  * const { sql, params } = result;
  * ```
  */
-declare class BuilderResult {
+declare class BuildResult {
 	/** 生成的 SQL 语句（含占位符 ?） */
 	readonly sql: string;
 	/** 查询参数数组 */
@@ -712,7 +712,7 @@ declare class SQLBuilder {
 
 	/**
 	 * 构建 SQL 查询对象
-	 * @returns BuilderResult 对象，包含 sql、params 属性，toString() 返回内联参数后的完整 SQL
+	 * @returns BuildResult 对象，包含 sql、params 属性，toString() 返回内联参数后的完整 SQL
 	 * @throws 当表名为空或查询类型不支持时抛出错误
 	 * @example
 	 * ```typescript
@@ -724,7 +724,7 @@ declare class SQLBuilder {
 	 * const { sql, params } = sqlBuilder.build();
 	 * ```
 	 */
-	build(): BuilderResult;
+	build(): BuildResult;
 
 	/**
 	 * 获取格式化的 SQL 字符串（用于调试，不应用于实际查询）
@@ -836,7 +836,7 @@ declare class Transaction {
 
 	/**
 	 * 构建事务 SQL
-	 * @returns BuilderResult 对象，包含完整事务 SQL 语句和参数，toString() 返回内联参数后的完整 SQL
+	 * @returns BuildResult 对象，包含完整事务 SQL 语句和参数，toString() 返回内联参数后的完整 SQL
 	 * @example
 	 * ```typescript
 	 * const result = transaction.build();
@@ -850,8 +850,8 @@ declare class Transaction {
 	 * // COMMIT;
 	 * ```
 	 */
-	build(): BuilderResult;
+	build(): BuildResult;
 }
 
-export { SQLBuilder, Transaction, RawExpression, BuilderResult, raw };
+export { SQLBuilder, Transaction, RawExpression, BuildResult, raw };
 export default SQLBuilder;

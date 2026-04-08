@@ -955,9 +955,9 @@ sqlBuilder.update("users").set({ age: raw("age + 1") }).where("id", 1).build();
 
 #### `build()`
 
-构建并返回最终的 SQL 查询，以 `BuilderResult` 对象的形式返回。
+构建并返回最终的 SQL 查询，以 `BuildResult` 对象的形式返回。
 
-- **返回值：** `BuilderResult` — 对象包含：
+- **返回值：** `BuildResult` — 对象包含：
   - `sql: string` — 含 `?` 占位符的 SQL 字符串
   - `params: any[]` — 参数数组
   - `toString(): string` — 返回将参数安全内联后的完整 SQL（仅用于调试，不可用于执行）
@@ -1041,7 +1041,7 @@ sqlBuilder.update("users").set({ age: raw("age + 1") }).where("id", 1).build();
 
 构建完整的事务 SQL。
 
-- **返回值：** `BuilderResult` — 对象包含：
+- **返回值：** `BuildResult` — 对象包含：
   - `sql: string` — 完整的事务 SQL（包含 `BEGIN`/`COMMIT`）含 `?` 占位符
   - `params: any[]` — 所有合并后的参数
   - `toString(): string` — 返回将参数安全内联后的完整事务 SQL（仅用于调试）

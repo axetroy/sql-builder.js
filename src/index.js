@@ -31,14 +31,14 @@ function formatSQL(sql, params) {
 /**
  * SQL 构建结果
  * 包含生成的 SQL 语句和参数，toString() 方法将参数安全地内联到 SQL 中（仅用于调试）
- * @class BuilderResult
+ * @class BuildResult
  * @example
  * const result = sqlBuilder.select('*').from('users').where('age', '>', 18).build();
  * console.log(result.sql);    // SELECT * FROM `users` WHERE `age` > ?
  * console.log(result.params); // [18]
  * console.log(result.toString()); // SELECT * FROM `users` WHERE `age` > 18
  */
-class BuilderResult {
+class BuildResult {
 	/**
 	 * @param {string} sql - 生成的 SQL 语句（含占位符 ?）
 	 * @param {any[]} params - 查询参数数组
@@ -1795,13 +1795,13 @@ class SQLBuilder {
 			allParams.push(...unionResult.params);
 		}
 
-		return new BuilderResult(sql, allParams);
+		return new BuildResult(sql, allParams);
 	}
 
 	/**
 	 * 构建 INSERT 查询
 	 * @private
-	 * @returns {BuilderResult}
+	 * @returns {BuildResult}
 	 */
 	#buildInsert() {
 		const columns = Object.keys(this.#query.values);
@@ -1819,7 +1819,7 @@ class SQLBuilder {
 		const returning = this.#buildReturningClause();
 		if (returning) parts.push(returning);
 
-		return new BuilderResult(parts.join(" "), this.#params);
+		return new BuildResult(parts.join(" "), this.#params);
 	}
 
 	/**
@@ -1857,13 +1857,13 @@ class SQLBuilder {
 
 		const sql = `INSERT INTO ${this.#query.table} (${columns.join(", ")}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updateClauses}`;
 
-		return new BuilderResult(sql, this.#params);
+		return new BuildResult(sql, this.#params);
 	}
 
 	/**
 	 * 构建 UPDATE 查询
 	 * @private
-	 * @returns {BuilderResult}
+	 * @returns {BuildResult}
 	 */
 	#buildUpdate() {
 		if (Object.keys(this.#query.set).length === 0) {
@@ -1894,13 +1894,13 @@ class SQLBuilder {
 		const returning = this.#buildReturningClause();
 		if (returning) parts.push(returning);
 
-		return new BuilderResult(parts.join(" "), this.#params);
+		return new BuildResult(parts.join(" "), this.#params);
 	}
 
 	/**
 	 * 构建 DELETE 查询
 	 * @private
-	 * @returns {BuilderResult}
+	 * @returns {BuildResult}
 	 */
 	#buildDelete() {
 		const parts = [`DELETE FROM ${this.#query.table}`];
@@ -1914,7 +1914,7 @@ class SQLBuilder {
 		const returning = this.#buildReturningClause();
 		if (returning) parts.push(returning);
 
-		return new BuilderResult(parts.join(" "), this.#params);
+		return new BuildResult(parts.join(" "), this.#params);
 	}
 
 	/**
@@ -2083,7 +2083,7 @@ class Transaction {
 
 	/**
 	 * 构建事务 SQL
-	 * @returns {BuilderResult} 包含完整事务 SQL 和参数的对象
+	 * @returns {BuildResult} 包含完整事务 SQL 和参数的对象
 	 * @example
 	 * const { sql, params } = transaction.build();
 	 * console.log(transaction.build().toString()); // 格式化后的完整事务 SQL
@@ -2108,9 +2108,9 @@ class Transaction {
 
 		parts.push("COMMIT");
 
-		return new BuilderResult(parts.join(";\n") + ";", params);
+		return new BuildResult(parts.join(";\n") + ";", params);
 	}
 }
 
-export { SQLBuilder, Transaction, RawExpression, BuilderResult, raw };
+export { SQLBuilder, Transaction, RawExpression, BuildResult, raw };
 export default SQLBuilder;

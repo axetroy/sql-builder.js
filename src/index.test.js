@@ -1330,27 +1330,27 @@ describe("SQLBuilder", () => {
 		});
 	});
 
-	describe("build() 返回 BuilderResult", () => {
-		it("应该返回含有 sql 和 params 属性的 BuilderResult 对象", () => {
+	describe("build() 返回 BuildResult", () => {
+		it("应该返回含有 sql 和 params 属性的 BuildResult 对象", () => {
 			const result = sqlBuilder.select("*").from("users").where("age", ">", 18).build();
 
 			assert.strictEqual(result.sql, "SELECT * FROM `users` WHERE `age` > ?");
 			assert.deepStrictEqual(result.params, [18]);
 		});
 
-		it("BuilderResult.toString() 应该返回内联参数后的安全 SQL", () => {
+		it("BuildResult.toString() 应该返回内联参数后的安全 SQL", () => {
 			const result = sqlBuilder.select("*").from("users").where("age", ">", 18).where("name", "John").build();
 
 			assert.strictEqual(result.toString(), "SELECT * FROM `users` WHERE `age` > 18 AND `name` = 'John'");
 		});
 
-		it("BuilderResult.toString() 应该对字符串参数中的单引号进行转义", () => {
+		it("BuildResult.toString() 应该对字符串参数中的单引号进行转义", () => {
 			const result = sqlBuilder.select("*").from("users").where("name", "O'Brien").build();
 
 			assert.strictEqual(result.toString(), "SELECT * FROM `users` WHERE `name` = 'O''Brien'");
 		});
 
-		it("解构 BuilderResult 仍然有效", () => {
+		it("解构 BuildResult 仍然有效", () => {
 			const { sql, params } = sqlBuilder.select("*").from("users").where("age", ">", 18).build();
 
 			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `age` > ?");

@@ -955,9 +955,9 @@ Appends a row-level locking clause to a `SELECT` query.
 
 #### `build()`
 
-Builds and returns the final SQL query as a `BuilderResult` object.
+Builds and returns the final SQL query as a `BuildResult` object.
 
-- **Returns:** `BuilderResult` — object with:
+- **Returns:** `BuildResult` — object with:
   - `sql: string` — SQL string with `?` placeholders
   - `params: any[]` — parameter array
   - `toString(): string` — returns the complete SQL with parameters safely inlined (for debugging only, not for execution)
@@ -1041,7 +1041,7 @@ Adds a `ROLLBACK TO SAVEPOINT` statement to the transaction.
 
 Builds the complete transaction SQL.
 
-- **Returns:** `BuilderResult` — object with:
+- **Returns:** `BuildResult` — object with:
   - `sql: string` — full transaction SQL (wrapped in `BEGIN`/`COMMIT`) with `?` placeholders
   - `params: any[]` — all merged parameters in order
   - `toString(): string` — returns the complete transaction SQL with parameters safely inlined (for debugging only)
