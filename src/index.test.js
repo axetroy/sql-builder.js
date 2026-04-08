@@ -1383,6 +1383,174 @@ describe("SQLBuilder", () => {
 			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` = ?");
 			assert.deepStrictEqual(params, ["'; DROP TABLE users--"]);
 		});
+
+		it("UPDATE set() 中包含 DROP TABLE 的值应被参数化", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set({ name: "'; DROP TABLE users--" })
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `name` = ? WHERE `id` = ?");
+			assert.deepStrictEqual(params, ["'; DROP TABLE users--", 1]);
+		});
+
+		it("UPDATE set() 中包含 DELETE FROM 的值应被参数化", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set({ email: "x'; DELETE FROM users--" })
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `email` = ? WHERE `id` = ?");
+			assert.deepStrictEqual(params, ["x'; DELETE FROM users--", 1]);
+		});
+
+		it("UPDATE set() 中包含 UNION SELECT 的值应被参数化", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set({ name: "' UNION SELECT * FROM passwords--" })
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `name` = ? WHERE `id` = ?");
+			assert.deepStrictEqual(params, ["' UNION SELECT * FROM passwords--", 1]);
+		});
+
+		it("UPDATE set() 中包含多个恶意值时全部应被参数化", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set({
+					name: "'; DROP TABLE users--",
+					email: "x'; DELETE FROM users WHERE 1=1--",
+				})
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `name` = ?, `email` = ? WHERE `id` = ?");
+			assert.deepStrictEqual(params, ["'; DROP TABLE users--", "x'; DELETE FROM users WHERE 1=1--", 1]);
+		});
+
+		it("UPDATE 的 WHERE 条件中包含恶意值应被参数化", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set({ status: "active" })
+				.where("name", "' OR '1'='1")
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `status` = ? WHERE `name` = ?");
+			assert.deepStrictEqual(params, ["active", "' OR '1'='1"]);
+		});
+
+		it("INSERT 中包含 DROP TABLE 的值应被参数化", () => {
+			const { sql, params } = sqlBuilder
+				.insert("users", { name: "'; DROP TABLE users--", email: "a@b.com" })
+				.build();
+
+			assert.strictEqual(sql, "INSERT INTO `users` (`name`, `email`) VALUES (?, ?)");
+			assert.deepStrictEqual(params, ["'; DROP TABLE users--", "a@b.com"]);
+		});
+
+		it("INSERT 中包含 DELETE FROM 的值应被参数化", () => {
+			const { sql, params } = sqlBuilder
+				.insert("users", { name: "Alice", email: "x'); DELETE FROM users--" })
+				.build();
+
+			assert.strictEqual(sql, "INSERT INTO `users` (`name`, `email`) VALUES (?, ?)");
+			assert.deepStrictEqual(params, ["Alice", "x'); DELETE FROM users--"]);
+		});
+
+		it("WHERE IN 子句中包含恶意值应被参数化", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.whereIn("status", ["active", "'; DROP TABLE users--", "inactive"])
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `status` IN (?, ?, ?)");
+			assert.deepStrictEqual(params, ["active", "'; DROP TABLE users--", "inactive"]);
+		});
+
+		it("WHERE LIKE 子句中包含恶意值（精确匹配）应被参数化", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.whereLike("name", "'; DROP TABLE users--", false)
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` LIKE ?");
+			assert.deepStrictEqual(params, ["'; DROP TABLE users--"]);
+		});
+
+		it("WHERE LIKE 通配符模式中包含恶意值应被参数化", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.whereLike("name", "'; DROP TABLE users--", true)
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` LIKE ?");
+			assert.deepStrictEqual(params, ["%'; DROP TABLE users--%"]);
+		});
+
+		it("UPSERT 插入值中包含恶意 SQL 应被参数化", () => {
+			const { sql, params } = sqlBuilder
+				.upsert("users", { name: "'; DROP TABLE users--", email: "a@b.com" })
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"INSERT INTO `users` (`name`, `email`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `email` = VALUES(`email`)",
+			);
+			assert.deepStrictEqual(params, ["'; DROP TABLE users--", "a@b.com"]);
+		});
+
+		it("UPSERT 更新值中包含恶意 SQL 应被参数化", () => {
+			const { sql, params } = sqlBuilder
+				.upsert("users", { name: "Alice", email: "a@b.com" }, { email: "x'); DELETE FROM users--" })
+				.build();
+
+			assert.strictEqual(sql, "INSERT INTO `users` (`name`, `email`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `email` = ?");
+			assert.deepStrictEqual(params, ["Alice", "a@b.com", "x'); DELETE FROM users--"]);
+		});
+
+		it("UPDATE 的键名注入应被阻止", () => {
+			assert.throws(() => {
+				sqlBuilder
+					.update("users")
+					.set({ "name; DROP TABLE users--": "value" })
+					.where("id", 1)
+					.build();
+			}, /Potential SQL injection detected in identifier/);
+		});
+
+		it("INSERT 的键名注入应被阻止", () => {
+			assert.throws(() => {
+				sqlBuilder.insert("users", { "name; DROP TABLE users--": "value" }).build();
+			}, /Potential SQL injection detected in identifier/);
+		});
+
+		it("UPDATE 目标表名注入应被阻止", () => {
+			assert.throws(() => {
+				sqlBuilder
+					.update("users; DROP TABLE users--")
+					.set({ name: "test" })
+					.where("id", 1)
+					.build();
+			}, /Potential SQL injection detected in identifier/);
+		});
+
+		it("DELETE 目标表名注入应被阻止", () => {
+			assert.throws(() => {
+				sqlBuilder.delete("users; DROP TABLE users--").where("id", 1).build();
+			}, /Potential SQL injection detected in identifier/);
+		});
+
+		it("INSERT 目标表名注入应被阻止", () => {
+			assert.throws(() => {
+				sqlBuilder.insert("users; DROP TABLE users--", { name: "test" }).build();
+			}, /Potential SQL injection detected in identifier/);
+		});
 	});
 
 	describe("withTotal() 方法", () => {
