@@ -1,3 +1,6 @@
+/** @private 缓存的单引号转义正则，避免每次调用时重复创建 */
+const SINGLE_QUOTE_RE = /'/g;
+
 /**
  * 格式化 SQL 字符串，将参数安全地替换到 SQL 中（仅用于调试）
  * @param {string} sql - SQL 语句
@@ -5,17 +8,24 @@
  * @returns {string} 格式化后的 SQL 字符串
  */
 function formatSQL(sql, params) {
-	let formattedSQL = sql;
-	let paramIndex = 0;
+	if (params.length === 0) return sql;
 
-	// 安全地替换参数
-	formattedSQL = formattedSQL.replace(/\?/g, () => {
-		if (paramIndex >= params.length) return "?";
-		const param = params[paramIndex++];
-		return typeof param === "string" ? `'${param.replace(/'/g, "''")}'` : param;
-	});
+	const parts = sql.split("?");
+	const n = parts.length - 1;
+	if (n === 0) return sql;
 
-	return formattedSQL;
+	let result = parts[0];
+	for (let i = 0; i < n; i++) {
+		const param = params[i];
+		if (param === undefined) {
+			result += "?" + parts[i + 1];
+		} else if (typeof param === "string") {
+			result += "'" + param.replace(SINGLE_QUOTE_RE, "''") + "'" + parts[i + 1];
+		} else {
+			result += param + parts[i + 1];
+		}
+	}
+	return result;
 }
 
 /**
