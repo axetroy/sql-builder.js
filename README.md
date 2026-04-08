@@ -34,14 +34,18 @@ import { SQLBuilder } from "sql-builder.js";
 const sqlBuilder = new SQLBuilder();
 
 // Build a simple SELECT query
-const { sql, params } = sqlBuilder
+const result = sqlBuilder
   .select("*")
   .from("users")
   .where("age", ">", 18)
   .build();
 
-console.log(sql);    // SELECT * FROM `users` WHERE `age` > ?
-console.log(params); // [18]
+console.log(result.sql);         // SELECT * FROM `users` WHERE `age` > ?
+console.log(result.params);      // [18]
+console.log(result.toString());  // SELECT * FROM `users` WHERE `age` > 18
+
+// Destructuring still works as before
+const { sql, params } = result;
 ```
 
 ## Table of Contents
@@ -951,9 +955,12 @@ Appends a row-level locking clause to a `SELECT` query.
 
 #### `build()`
 
-Builds and returns the final SQL query.
+Builds and returns the final SQL query as a `BuildResult` object.
 
-- **Returns:** `{ sql: string, params: any[] }` - Object containing SQL string and parameter array
+- **Returns:** `BuildResult` — object with:
+  - `sql: string` — SQL string with `?` placeholders
+  - `params: any[]` — parameter array
+  - `toString(): string` — returns the complete SQL with parameters safely inlined (for debugging only, not for execution)
 - **Throws:** Error if table name is missing or query is invalid
 
 #### `reset()`
@@ -972,9 +979,9 @@ Sets a whitelist of allowed table and column names for enhanced security.
 
 #### `toString()`
 
-Returns a formatted SQL string with parameters substituted (for debugging only, not for execution).
+Returns a formatted SQL string with parameters safely substituted (for debugging only, not for execution). This is equivalent to calling `build().toString()`.
 
-- **Returns:** `string` - Formatted SQL string
+- **Returns:** `string` - Formatted SQL string with parameters inlined
 
 #### `getParams()`
 
@@ -1034,7 +1041,10 @@ Adds a `ROLLBACK TO SAVEPOINT` statement to the transaction.
 
 Builds the complete transaction SQL.
 
-- **Returns:** `{ sql: string, params: any[] }` — the full transaction SQL (wrapped in `BEGIN`/`COMMIT`) and all merged parameters
+- **Returns:** `BuildResult` — object with:
+  - `sql: string` — full transaction SQL (wrapped in `BEGIN`/`COMMIT`) with `?` placeholders
+  - `params: any[]` — all merged parameters in order
+  - `toString(): string` — returns the complete transaction SQL with parameters safely inlined (for debugging only)
 
 ## Best Practices
 

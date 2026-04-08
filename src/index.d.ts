@@ -1,11 +1,32 @@
 /**
- * SQL 查询构建结果
+ * SQL 构建结果
+ * 包含生成的 SQL 语句和参数，toString() 方法将参数安全地内联到 SQL 中（仅用于调试）
+ * @example
+ * ```typescript
+ * const result = sqlBuilder.select('*').from('users').where('age', '>', 18).build();
+ * console.log(result.sql);         // SELECT * FROM `users` WHERE `age` > ?
+ * console.log(result.params);      // [18]
+ * console.log(result.toString());  // SELECT * FROM `users` WHERE `age` > 18
+ * // 解构仍然有效
+ * const { sql, params } = result;
+ * ```
  */
-interface BuildResult {
-	/** 生成的 SQL 语句 */
-	sql: string;
+declare class BuildResult {
+	/** 生成的 SQL 语句（含占位符 ?） */
+	readonly sql: string;
 	/** 查询参数数组 */
-	params: any[];
+	readonly params: any[];
+	/**
+	 * @param sql - 生成的 SQL 语句
+	 * @param params - 查询参数数组
+	 */
+	constructor(sql: string, params: any[]);
+	/**
+	 * 返回将参数安全地内联后的完整 SQL 字符串（仅用于调试，不应用于实际查询）
+	 * 字符串参数会被单引号包裹，并对内部单引号进行转义，防止 SQL 注入
+	 * @returns 格式化的 SQL 字符串
+	 */
+	toString(): string;
 }
 
 /**
@@ -691,13 +712,16 @@ declare class SQLBuilder {
 
 	/**
 	 * 构建 SQL 查询对象
-	 * @returns 包含 SQL 语句和参数的对象
+	 * @returns BuildResult 对象，包含 sql、params 属性，toString() 返回内联参数后的完整 SQL
 	 * @throws 当表名为空或查询类型不支持时抛出错误
 	 * @example
 	 * ```typescript
+	 * const result = sqlBuilder.build();
+	 * console.log(result.sql);         // "SELECT * FROM `users` WHERE `age` > ?"
+	 * console.log(result.params);      // [18]
+	 * console.log(result.toString());  // "SELECT * FROM `users` WHERE `age` > 18"
+	 * // 解构仍然有效
 	 * const { sql, params } = sqlBuilder.build();
-	 * console.log(sql); // "SELECT * FROM `users` WHERE `age` > ?"
-	 * console.log(params); // [18]
 	 * ```
 	 */
 	build(): BuildResult;
@@ -735,26 +759,16 @@ declare class SQLBuilder {
 }
 
 /**
- * SQL 事务构建结果
- */
-interface TransactionResult {
-	/** 完整的事务 SQL 语句（包含 BEGIN 和 COMMIT） */
-	sql: string;
-	/** 所有查询的参数数组（按顺序合并） */
-	params: any[];
-}
-
-/**
  * SQL 事务构建器
  * 将多个 SQLBuilder 查询包装在事务中，支持 SAVEPOINT 操作
  * @example
  * ```typescript
  * const transaction = new Transaction();
- * const { sql, params } = transaction
+ * const result = transaction
  *   .add(new SQLBuilder().insert('users', { name: 'John' }))
  *   .add(new SQLBuilder().update('accounts').set({ balance: 100 }).where('id', 1))
  *   .build();
- * // sql:
+ * // result.sql:
  * // BEGIN;
  * // INSERT INTO `users` (`name`) VALUES (?);
  * // UPDATE `accounts` SET `balance` = ? WHERE `id` = ?;
@@ -822,18 +836,22 @@ declare class Transaction {
 
 	/**
 	 * 构建事务 SQL
-	 * @returns 包含完整事务 SQL 语句和参数的对象
+	 * @returns BuildResult 对象，包含完整事务 SQL 语句和参数，toString() 返回内联参数后的完整 SQL
 	 * @example
 	 * ```typescript
-	 * const { sql, params } = transaction.build();
-	 * console.log(sql);
+	 * const result = transaction.build();
+	 * console.log(result.sql);
 	 * // BEGIN;
 	 * // INSERT INTO `users` (`name`) VALUES (?);
 	 * // COMMIT;
+	 * console.log(result.toString());
+	 * // BEGIN;
+	 * // INSERT INTO `users` (`name`) VALUES ('John');
+	 * // COMMIT;
 	 * ```
 	 */
-	build(): TransactionResult;
+	build(): BuildResult;
 }
 
-export { SQLBuilder, Transaction, RawExpression, raw };
+export { SQLBuilder, Transaction, RawExpression, BuildResult, raw };
 export default SQLBuilder;
