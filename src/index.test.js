@@ -754,6 +754,44 @@ describe("SQLBuilder", () => {
 				sqlBuilder.select("*").from("users").join("posts;", "users.id", "=", "posts.user_id").build();
 			}, /Potential SQL injection detected in identifier/);
 		});
+
+		it("应该支持回调形式的多条件 ON（AND）", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.join("posts", (on) => on.on("users.id", "=", "posts.user_id").on("users.status", "=", "posts.status"))
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"SELECT * FROM `users` INNER JOIN `posts` ON `users`.`id` = `posts`.`user_id` AND `users`.`status` = `posts`.`status`",
+			);
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该支持回调形式的多条件 ON（OR）", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.join("posts", (on) => on.on("users.id", "=", "posts.user_id").orOn("users.uuid", "=", "posts.user_uuid"))
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"SELECT * FROM `users` INNER JOIN `posts` ON `users`.`id` = `posts`.`user_id` OR `users`.`uuid` = `posts`.`user_uuid`",
+			);
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("回调形式应该拒绝危险的 ON 条件标识符", () => {
+			assert.throws(() => {
+				sqlBuilder
+					.select("*")
+					.from("users")
+					.join("posts", (on) => on.on("users.id;", "=", "posts.user_id"))
+					.build();
+			}, /Potential SQL injection detected in identifier/);
+		});
 	});
 
 	describe("leftJoin() 方法", () => {
@@ -761,6 +799,20 @@ describe("SQLBuilder", () => {
 			const { sql, params } = sqlBuilder.select("*").from("users").leftJoin("profiles", "users.id", "=", "profiles.user_id").build();
 
 			assert.strictEqual(sql, "SELECT * FROM `users` LEFT JOIN `profiles` ON `users`.`id` = `profiles`.`user_id`");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该支持回调形式的多条件 ON", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.leftJoin("posts", (on) => on.on("users.id", "=", "posts.user_id").on("users.status", "=", "posts.status"))
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"SELECT * FROM `users` LEFT JOIN `posts` ON `users`.`id` = `posts`.`user_id` AND `users`.`status` = `posts`.`status`",
+			);
 			assert.deepStrictEqual(params, []);
 		});
 	});
@@ -784,6 +836,20 @@ describe("SQLBuilder", () => {
 			assert.throws(() => {
 				sqlBuilder.select("*").from("users").rightJoin("profiles;", "users.id", "=", "profiles.user_id").build();
 			}, /Potential SQL injection detected in identifier/);
+		});
+
+		it("应该支持回调形式的多条件 ON", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.rightJoin("posts", (on) => on.on("users.id", "=", "posts.user_id").on("users.status", "=", "posts.status"))
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"SELECT * FROM `users` RIGHT JOIN `posts` ON `users`.`id` = `posts`.`user_id` AND `users`.`status` = `posts`.`status`",
+			);
+			assert.deepStrictEqual(params, []);
 		});
 	});
 
