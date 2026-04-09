@@ -360,18 +360,22 @@ class SQLBuilder {
 
 	/**
 	 * 设置 SELECT 查询的列
-	 * @param {string|string[]} columns - 要查询的列名，默认为 ['*']
+	 * @param {string|string[]|RawExpression|Array<string|RawExpression>} columns - 要查询的列名或原始 SQL 表达式，默认为 ['*']
 	 * @returns {SQLBuilder}
 	 * @example
 	 * sql.select(['id', 'name', 'email']);
 	 * sql.select('*'); // 查询所有列
 	 * sql.select(['u.id', 'u.name']); // 使用表别名
+	 * sql.select(raw('COALESCE(name, email) AS display_name')); // 原始表达式
 	 */
 	select(columns = ["*"]) {
 		this.#query.type = "SELECT";
 
 		const columnArray = Array.isArray(columns) ? columns : [columns];
 		this.#query.columns = columnArray.map((col) => {
+			if (col instanceof RawExpression) {
+				return col.expression;
+			}
 			if (col !== "*") {
 				this.#validateIdentifier(col);
 				return this.#escapeIdentifier(col);

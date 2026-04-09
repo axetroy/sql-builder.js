@@ -103,16 +103,18 @@ declare class SQLBuilder {
 
 	/**
 	 * 设置 SELECT 查询的列
-	 * @param columns - 要查询的列名，默认为 ['*']
+	 * @param columns - 要查询的列名或原始 SQL 表达式，默认为 ['*']
 	 * @returns SQLBuilder 实例
 	 * @example
 	 * ```typescript
 	 * sql.select('id', 'name');
 	 * sql.select(['id', 'name', 'email']);
 	 * sql.select('*'); // 查询所有列
+	 * sql.select(raw('COALESCE(name, email) AS display_name')); // 原始表达式
+	 * sql.select(['id', raw('COALESCE(name, email) AS display_name')]); // 混合使用
 	 * ```
 	 */
-	select(columns?: string | string[]): this;
+	select(columns?: string | RawExpression | Array<string | RawExpression>): this;
 
 	/**
 	 * 启用 SELECT DISTINCT 去重查询
