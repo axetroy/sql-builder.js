@@ -170,6 +170,12 @@ class SQLBuilder {
 
 	/**
 	 * @private
+	 * @type {Array<any>}
+	 */
+	#setParams = [];
+
+	/**
+	 * @private
 	 * @type {Set<string>}
 	 */
 	#allowedIdentifiers = new Set();
@@ -348,6 +354,7 @@ class SQLBuilder {
 			unions: [],
 		};
 		this.#params = [];
+		this.#setParams = [];
 		return this;
 	}
 
@@ -1487,8 +1494,10 @@ class SQLBuilder {
 			escapedData[this.#escapeIdentifier(key)] = value;
 		});
 
-		this.#query.set = escapedData;
-		this.#params.push(...entries.filter(([, value]) => !(value instanceof RawExpression) && value !== null).map(([, value]) => value));
+		Object.assign(this.#query.set, escapedData);
+		this.#setParams = Object.keys(this.#query.set)
+			.map((k) => this.#query.set[k])
+			.filter((v) => !(v instanceof RawExpression) && v !== null);
 		return this;
 	}
 
@@ -1894,7 +1903,7 @@ class SQLBuilder {
 		const returning = this.#buildReturningClause();
 		if (returning) parts.push(returning);
 
-		return new BuildResult(parts.join(" "), this.#params);
+		return new BuildResult(parts.join(" "), [...this.#setParams, ...this.#params]);
 	}
 
 	/**
