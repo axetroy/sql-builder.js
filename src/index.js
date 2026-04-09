@@ -464,6 +464,13 @@ class SQLBuilder {
 		this.#validateIdentifier(column);
 		this.#validateOperator(operator);
 
+		const upperOperator = operator.toUpperCase();
+
+		// IS / IS NOT 只能配合 null 使用
+		if ((upperOperator === "IS" || upperOperator === "IS NOT") && value !== null) {
+			throw new Error(`Operator "${operator}" requires the value to be null`);
+		}
+
 		this.#query.where.push({
 			column: this.#escapeIdentifier(column),
 			operator,
@@ -472,7 +479,7 @@ class SQLBuilder {
 		});
 
 		// 对于 IS NULL 和 IS NOT NULL，不需要参数
-		if (operator.toUpperCase() !== "IS" || (value !== null && value !== "NULL")) {
+		if (upperOperator !== "IS" && upperOperator !== "IS NOT") {
 			this.#params.push(value);
 		}
 
@@ -519,6 +526,13 @@ class SQLBuilder {
 		this.#validateIdentifier(column);
 		this.#validateOperator(operator);
 
+		const upperOperator = operator.toUpperCase();
+
+		// IS / IS NOT 只能配合 null 使用
+		if ((upperOperator === "IS" || upperOperator === "IS NOT") && value !== null) {
+			throw new Error(`Operator "${operator}" requires the value to be null`);
+		}
+
 		this.#query.where.push({
 			column: this.#escapeIdentifier(column),
 			operator,
@@ -526,7 +540,8 @@ class SQLBuilder {
 			connector: "OR",
 		});
 
-		if (operator.toUpperCase() !== "IS" || (value !== null && value !== "NULL")) {
+		// 对于 IS NULL 和 IS NOT NULL，不需要参数
+		if (upperOperator !== "IS" && upperOperator !== "IS NOT") {
 			this.#params.push(value);
 		}
 
@@ -1274,6 +1289,13 @@ class SQLBuilder {
 
 		this.#validateOperator(operator);
 
+		const upperOperator = operator.toUpperCase();
+
+		// IS / IS NOT 只能配合 null 使用
+		if ((upperOperator === "IS" || upperOperator === "IS NOT") && value !== null) {
+			throw new Error(`Operator "${operator}" requires the value to be null`);
+		}
+
 		this.#query.having.push({
 			type: "condition",
 			column,
@@ -1282,7 +1304,7 @@ class SQLBuilder {
 			connector: "AND",
 		});
 
-		if (operator.toUpperCase() !== "IS" && operator.toUpperCase() !== "IS NOT") {
+		if (upperOperator !== "IS" && upperOperator !== "IS NOT") {
 			this.#params.push(value);
 		}
 
