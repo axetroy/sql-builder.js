@@ -335,7 +335,6 @@ const result = sqlBuilder
 #### WHERE LIKE
 
 ```js
-// Search with wildcards (default)
 const { sql, params } = sqlBuilder
   .select("*")
   .from("users")
@@ -343,15 +342,6 @@ const { sql, params } = sqlBuilder
   .build();
 // SELECT * FROM `users` WHERE `name` LIKE ?
 // params: ['%John%']
-
-// Search with custom pattern (no auto-wildcards)
-const result = sqlBuilder
-  .select("*")
-  .from("users")
-  .whereLike("email", "%@example.com", false)
-  .build();
-// SELECT * FROM `users` WHERE `email` LIKE ?
-// params: ['%@example.com']
 ```
 
 #### WHERE BETWEEN
@@ -862,14 +852,13 @@ Adds a WHERE NOT IN condition.
 - **Parameters:** Same as `whereIn()`
 - **Returns:** `SQLBuilder` (chainable)
 
-#### `whereLike(column, value, [wildcard])`
+#### `whereLike(column, value)`
 
-Adds a WHERE LIKE condition.
+Adds a WHERE LIKE condition. The value is automatically wrapped with `%` wildcards for a contains-style search.
 
 - **Parameters:**
   - `column` (string): Column name
   - `value` (string): Search value
-  - `wildcard` (boolean, optional): Auto-add `%` wildcards (default: `true`)
 - **Returns:** `SQLBuilder` (chainable)
 
 #### `whereBetween(column, start, end)`

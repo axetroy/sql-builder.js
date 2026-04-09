@@ -335,7 +335,6 @@ const result = sqlBuilder
 #### WHERE LIKE
 
 ```js
-// 使用通配符搜索（默认）
 const { sql, params } = sqlBuilder
   .select("*")
   .from("users")
@@ -343,15 +342,6 @@ const { sql, params } = sqlBuilder
   .build();
 // SELECT * FROM `users` WHERE `name` LIKE ?
 // params: ['%张%']
-
-// 使用自定义模式（不自动添加通配符）
-const result = sqlBuilder
-  .select("*")
-  .from("users")
-  .whereLike("email", "%@example.com", false)
-  .build();
-// SELECT * FROM `users` WHERE `email` LIKE ?
-// params: ['%@example.com']
 ```
 
 #### WHERE BETWEEN
@@ -862,14 +852,13 @@ sqlBuilder.update("users").set({ age: raw("age + 1") }).where("id", 1).build();
 - **参数：** 与 `whereIn()` 相同
 - **返回值：** `SQLBuilder`（可链式调用）
 
-#### `whereLike(column, value, [wildcard])`
+#### `whereLike(column, value)`
 
-添加 WHERE LIKE 条件。
+添加 WHERE LIKE 条件。值会自动在两侧添加 `%` 通配符，实现包含搜索。
 
 - **参数：**
   - `column`（string）：列名
   - `value`（string）：搜索值
-  - `wildcard`（boolean，可选）：自动添加 `%` 通配符（默认：`true`）
 - **返回值：** `SQLBuilder`（可链式调用）
 
 #### `whereBetween(column, start, end)`

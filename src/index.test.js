@@ -408,12 +408,37 @@ describe("SQLBuilder", () => {
 			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` LIKE ?");
 			assert.deepStrictEqual(params, ["%John%"]);
 		});
+	});
 
-		it("应该支持禁用通配符", () => {
-			const { sql, params } = sqlBuilder.select("*").from("users").whereLike("email", "@example.com", false).build();
+	describe("whereStartsWith() 方法", () => {
+		it("应该添加 LIKE 前缀匹配条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereStartsWith("name", "John").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` LIKE ?");
+			assert.deepStrictEqual(params, ["John%"]);
+		});
+
+		it("应该支持表别名", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereStartsWith("u.username", "admin").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `u`.`username` LIKE ?");
+			assert.deepStrictEqual(params, ["admin%"]);
+		});
+	});
+
+	describe("whereEndsWith() 方法", () => {
+		it("应该添加 LIKE 后缀匹配条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereEndsWith("email", "@example.com").build();
 
 			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `email` LIKE ?");
-			assert.deepStrictEqual(params, ["@example.com"]);
+			assert.deepStrictEqual(params, ["%@example.com"]);
+		});
+
+		it("应该支持表别名", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereEndsWith("u.email", "@example.com").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `u`.`email` LIKE ?");
+			assert.deepStrictEqual(params, ["%@example.com"]);
 		});
 	});
 
@@ -487,12 +512,23 @@ describe("SQLBuilder", () => {
 			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` LIKE ? OR `name` LIKE ?");
 			assert.deepStrictEqual(params, ["%John%", "%Jane%"]);
 		});
+	});
 
-		it("应该支持禁用通配符", () => {
-			const { sql, params } = sqlBuilder.select("*").from("users").whereLike("email", "@example.com", false).orWhereLike("email", "@test.com", false).build();
+	describe("orWhereStartsWith() 方法", () => {
+		it("应该添加 OR LIKE 前缀匹配条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereStartsWith("name", "John").orWhereStartsWith("name", "Jane").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` LIKE ? OR `name` LIKE ?");
+			assert.deepStrictEqual(params, ["John%", "Jane%"]);
+		});
+	});
+
+	describe("orWhereEndsWith() 方法", () => {
+		it("应该添加 OR LIKE 后缀匹配条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereEndsWith("email", "@example.com").orWhereEndsWith("email", "@test.com").build();
 
 			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `email` LIKE ? OR `email` LIKE ?");
-			assert.deepStrictEqual(params, ["@example.com", "@test.com"]);
+			assert.deepStrictEqual(params, ["%@example.com", "%@test.com"]);
 		});
 	});
 
@@ -1559,22 +1595,11 @@ describe("SQLBuilder", () => {
 			assert.deepStrictEqual(params, ["active", "'; DROP TABLE users--", "inactive"]);
 		});
 
-		it("WHERE LIKE 子句中包含恶意值（精确匹配）应被参数化", () => {
+		it("WHERE LIKE 子句中包含恶意值应被参数化", () => {
 			const { sql, params } = sqlBuilder
 				.select("*")
 				.from("users")
-				.whereLike("name", "'; DROP TABLE users--", false)
-				.build();
-
-			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` LIKE ?");
-			assert.deepStrictEqual(params, ["'; DROP TABLE users--"]);
-		});
-
-		it("WHERE LIKE 通配符模式中包含恶意值应被参数化", () => {
-			const { sql, params } = sqlBuilder
-				.select("*")
-				.from("users")
-				.whereLike("name", "'; DROP TABLE users--", true)
+				.whereLike("name", "'; DROP TABLE users--")
 				.build();
 
 			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` LIKE ?");

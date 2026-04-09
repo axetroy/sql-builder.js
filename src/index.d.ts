@@ -217,18 +217,40 @@ declare class SQLBuilder {
 	whereNotIn(column: string, values: any[]): this;
 
 	/**
-	 * 添加 LIKE 条件
+	 * 添加 LIKE 条件，自动在值两侧添加 % 通配符
 	 * @param column - 列名
 	 * @param value - 搜索值
-	 * @param wildcard - 是否自动添加 % 通配符，默认为 true
 	 * @returns SQLBuilder 实例
 	 * @example
 	 * ```typescript
 	 * sql.whereLike('name', 'John'); // 搜索包含 'John' 的名称
-	 * sql.whereLike('email', '@example.com', false); // 精确匹配结尾
 	 * ```
 	 */
-	whereLike(column: string, value: string, wildcard?: boolean): this;
+	whereLike(column: string, value: string): this;
+
+	/**
+	 * 添加 LIKE 前缀匹配条件（STARTS WITH）
+	 * @param column - 列名
+	 * @param value - 搜索值（自动追加 %）
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.whereStartsWith('name', 'John'); // 搜索以 'John' 开头的名称
+	 * ```
+	 */
+	whereStartsWith(column: string, value: string): this;
+
+	/**
+	 * 添加 LIKE 后缀匹配条件（ENDS WITH）
+	 * @param column - 列名
+	 * @param value - 搜索值（自动前置 %）
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.whereEndsWith('email', '@example.com'); // 搜索以 '@example.com' 结尾的邮箱
+	 * ```
+	 */
+	whereEndsWith(column: string, value: string): this;
 
 	/**
 	 * 添加 BETWEEN 条件
@@ -293,17 +315,40 @@ declare class SQLBuilder {
 	orWhereNotIn(column: string, values: any[]): this;
 
 	/**
-	 * 添加 OR LIKE 条件
+	 * 添加 OR LIKE 条件，自动在值两侧添加 % 通配符
 	 * @param column - 列名
 	 * @param value - 搜索值
-	 * @param wildcard - 是否自动添加 % 通配符，默认为 true
 	 * @returns SQLBuilder 实例
 	 * @example
 	 * ```typescript
 	 * sql.whereLike('name', 'John').orWhereLike('name', 'Jane');
 	 * ```
 	 */
-	orWhereLike(column: string, value: string, wildcard?: boolean): this;
+	orWhereLike(column: string, value: string): this;
+
+	/**
+	 * 添加 OR LIKE 前缀匹配条件（OR STARTS WITH）
+	 * @param column - 列名
+	 * @param value - 搜索值（自动追加 %）
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.whereStartsWith('name', 'John').orWhereStartsWith('name', 'Jane');
+	 * ```
+	 */
+	orWhereStartsWith(column: string, value: string): this;
+
+	/**
+	 * 添加 OR LIKE 后缀匹配条件（OR ENDS WITH）
+	 * @param column - 列名
+	 * @param value - 搜索值（自动前置 %）
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.whereEndsWith('email', '@example.com').orWhereEndsWith('email', '@test.com');
+	 * ```
+	 */
+	orWhereEndsWith(column: string, value: string): this;
 
 	/**
 	 * 添加 OR BETWEEN 条件
