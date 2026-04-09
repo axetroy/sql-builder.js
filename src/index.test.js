@@ -1051,6 +1051,42 @@ describe("SQLBuilder", () => {
 			assert.strictEqual(sql, "UPDATE `users` SET `age` = age + 1, `deleted_at` = NULL, `name` = ? WHERE `id` = ?");
 			assert.deepStrictEqual(params, ["Jane", 1]);
 		});
+
+		it("应该支持多次调用 set() 合并不同字段", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set({ name: "Jane" })
+				.set({ age: 26 })
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `name` = ?, `age` = ? WHERE `id` = ?");
+			assert.deepStrictEqual(params, ["Jane", 26, 1]);
+		});
+
+		it("应该支持多次调用 set() 覆盖相同字段", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set({ name: "Jane" })
+				.set({ name: "John", age: 26 })
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `name` = ?, `age` = ? WHERE `id` = ?");
+			assert.deepStrictEqual(params, ["John", 26, 1]);
+		});
+
+		it("应该支持多次调用 set() 混合 null 值和 raw() 表达式", () => {
+			const { sql, params } = sqlBuilder
+				.update("users")
+				.set({ name: "Jane" })
+				.set({ age: raw("age + 1"), deleted_at: null })
+				.where("id", 1)
+				.build();
+
+			assert.strictEqual(sql, "UPDATE `users` SET `name` = ?, `age` = age + 1, `deleted_at` = NULL WHERE `id` = ?");
+			assert.deepStrictEqual(params, ["Jane", 1]);
+		});
 	});
 
 	describe("delete() 方法", () => {
