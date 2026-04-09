@@ -231,6 +231,30 @@ declare class SQLBuilder {
 	whereLike(column: string, value: string, wildcard?: boolean): this;
 
 	/**
+	 * 添加 LIKE 前缀匹配条件（STARTS WITH）
+	 * @param column - 列名
+	 * @param value - 搜索值（自动追加 %）
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.whereStartsWith('name', 'John'); // 搜索以 'John' 开头的名称
+	 * ```
+	 */
+	whereStartsWith(column: string, value: string): this;
+
+	/**
+	 * 添加 LIKE 后缀匹配条件（ENDS WITH）
+	 * @param column - 列名
+	 * @param value - 搜索值（自动前置 %）
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.whereEndsWith('email', '@example.com'); // 搜索以 '@example.com' 结尾的邮箱
+	 * ```
+	 */
+	whereEndsWith(column: string, value: string): this;
+
+	/**
 	 * 添加 BETWEEN 条件
 	 * @param column - 列名
 	 * @param start - 范围开始值
@@ -304,6 +328,30 @@ declare class SQLBuilder {
 	 * ```
 	 */
 	orWhereLike(column: string, value: string, wildcard?: boolean): this;
+
+	/**
+	 * 添加 OR LIKE 前缀匹配条件（OR STARTS WITH）
+	 * @param column - 列名
+	 * @param value - 搜索值（自动追加 %）
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.whereStartsWith('name', 'John').orWhereStartsWith('name', 'Jane');
+	 * ```
+	 */
+	orWhereStartsWith(column: string, value: string): this;
+
+	/**
+	 * 添加 OR LIKE 后缀匹配条件（OR ENDS WITH）
+	 * @param column - 列名
+	 * @param value - 搜索值（自动前置 %）
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.whereEndsWith('email', '@example.com').orWhereEndsWith('email', '@test.com');
+	 * ```
+	 */
+	orWhereEndsWith(column: string, value: string): this;
 
 	/**
 	 * 添加 OR BETWEEN 条件

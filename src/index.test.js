@@ -417,6 +417,38 @@ describe("SQLBuilder", () => {
 		});
 	});
 
+	describe("whereStartsWith() 方法", () => {
+		it("应该添加 LIKE 前缀匹配条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereStartsWith("name", "John").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` LIKE ?");
+			assert.deepStrictEqual(params, ["John%"]);
+		});
+
+		it("应该支持表别名", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereStartsWith("u.username", "admin").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `u`.`username` LIKE ?");
+			assert.deepStrictEqual(params, ["admin%"]);
+		});
+	});
+
+	describe("whereEndsWith() 方法", () => {
+		it("应该添加 LIKE 后缀匹配条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereEndsWith("email", "@example.com").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `email` LIKE ?");
+			assert.deepStrictEqual(params, ["%@example.com"]);
+		});
+
+		it("应该支持表别名", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereEndsWith("u.email", "@example.com").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `u`.`email` LIKE ?");
+			assert.deepStrictEqual(params, ["%@example.com"]);
+		});
+	});
+
 	describe("whereBetween() 方法", () => {
 		it("应该添加 BETWEEN 条件", () => {
 			const { sql, params } = sqlBuilder.select("*").from("users").whereBetween("age", 18, 65).build();
@@ -493,6 +525,24 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `email` LIKE ? OR `email` LIKE ?");
 			assert.deepStrictEqual(params, ["@example.com", "@test.com"]);
+		});
+	});
+
+	describe("orWhereStartsWith() 方法", () => {
+		it("应该添加 OR LIKE 前缀匹配条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereStartsWith("name", "John").orWhereStartsWith("name", "Jane").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` LIKE ? OR `name` LIKE ?");
+			assert.deepStrictEqual(params, ["John%", "Jane%"]);
+		});
+	});
+
+	describe("orWhereEndsWith() 方法", () => {
+		it("应该添加 OR LIKE 后缀匹配条件", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").whereEndsWith("email", "@example.com").orWhereEndsWith("email", "@test.com").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `email` LIKE ? OR `email` LIKE ?");
+			assert.deepStrictEqual(params, ["%@example.com", "%@test.com"]);
 		});
 	});
 
