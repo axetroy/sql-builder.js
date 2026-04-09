@@ -100,6 +100,30 @@ describe("SQLBuilder", () => {
 				sqlBuilder.select("id; DROP TABLE users--").from("users").build();
 			}, /Potential SQL injection detected in identifier/);
 		});
+
+		it("应该支持单个 raw 表达式", () => {
+			const { sql, params } = sqlBuilder.select(raw("COALESCE(name, email) AS display_name")).from("users").build();
+
+			assert.strictEqual(sql, "SELECT COALESCE(name, email) AS display_name FROM `users`");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该支持混合列名和 raw 表达式", () => {
+			const { sql, params } = sqlBuilder.select(["id", raw("COALESCE(name, email) AS display_name")]).from("users").build();
+
+			assert.strictEqual(sql, "SELECT `id`, COALESCE(name, email) AS display_name FROM `users`");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该支持多个 raw 表达式", () => {
+			const { sql, params } = sqlBuilder
+				.select([raw("COUNT(*) AS total"), raw("SUM(amount) AS sum_amount")])
+				.from("orders")
+				.build();
+
+			assert.strictEqual(sql, "SELECT COUNT(*) AS total, SUM(amount) AS sum_amount FROM `orders`");
+			assert.deepStrictEqual(params, []);
+		});
 	});
 
 	describe("distinct() 方法", () => {
