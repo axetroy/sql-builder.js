@@ -408,13 +408,6 @@ describe("SQLBuilder", () => {
 			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` LIKE ?");
 			assert.deepStrictEqual(params, ["%John%"]);
 		});
-
-		it("应该支持禁用通配符", () => {
-			const { sql, params } = sqlBuilder.select("*").from("users").whereLike("email", "@example.com", false).build();
-
-			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `email` LIKE ?");
-			assert.deepStrictEqual(params, ["@example.com"]);
-		});
 	});
 
 	describe("whereStartsWith() 方法", () => {
@@ -518,13 +511,6 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` LIKE ? OR `name` LIKE ?");
 			assert.deepStrictEqual(params, ["%John%", "%Jane%"]);
-		});
-
-		it("应该支持禁用通配符", () => {
-			const { sql, params } = sqlBuilder.select("*").from("users").whereLike("email", "@example.com", false).orWhereLike("email", "@test.com", false).build();
-
-			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `email` LIKE ? OR `email` LIKE ?");
-			assert.deepStrictEqual(params, ["@example.com", "@test.com"]);
 		});
 	});
 
@@ -1609,22 +1595,11 @@ describe("SQLBuilder", () => {
 			assert.deepStrictEqual(params, ["active", "'; DROP TABLE users--", "inactive"]);
 		});
 
-		it("WHERE LIKE 子句中包含恶意值（精确匹配）应被参数化", () => {
+		it("WHERE LIKE 子句中包含恶意值应被参数化", () => {
 			const { sql, params } = sqlBuilder
 				.select("*")
 				.from("users")
-				.whereLike("name", "'; DROP TABLE users--", false)
-				.build();
-
-			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` LIKE ?");
-			assert.deepStrictEqual(params, ["'; DROP TABLE users--"]);
-		});
-
-		it("WHERE LIKE 通配符模式中包含恶意值应被参数化", () => {
-			const { sql, params } = sqlBuilder
-				.select("*")
-				.from("users")
-				.whereLike("name", "'; DROP TABLE users--", true)
+				.whereLike("name", "'; DROP TABLE users--")
 				.build();
 
 			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `name` LIKE ?");

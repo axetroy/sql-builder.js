@@ -589,20 +589,18 @@ class SQLBuilder {
 	}
 
 	/**
-	 * 添加 LIKE 条件
+	 * 添加 LIKE 条件，自动在值两侧添加 % 通配符
 	 * @param {string} column - 列名，可以使用表别名
 	 * @param {string} value - 搜索值
-	 * @param {boolean} [wildcard=true] - 是否自动添加 % 通配符
 	 * @returns {SQLBuilder}
 	 * @example
 	 * sql.whereLike('name', 'John'); // 搜索包含 'John' 的名称
-	 * sql.whereLike('email', '@example.com', false); // 精确匹配结尾
 	 * sql.whereLike('u.username', 'admin'); // 使用表别名
 	 */
-	whereLike(column, value, wildcard = true) {
+	whereLike(column, value) {
 		this.#validateIdentifier(column);
 
-		const searchValue = wildcard ? `%${value}%` : value;
+		const searchValue = `%${value}%`;
 
 		this.#query.where.push({
 			column: this.#escapeIdentifier(column),
@@ -789,19 +787,18 @@ class SQLBuilder {
 	}
 
 	/**
-	 * 添加 OR LIKE 条件
+	 * 添加 OR LIKE 条件，自动在值两侧添加 % 通配符
 	 * @param {string} column - 列名，可以使用表别名
 	 * @param {string} value - 搜索值
-	 * @param {boolean} [wildcard=true] - 是否自动添加 % 通配符
 	 * @returns {SQLBuilder}
 	 * @example
 	 * sql.whereLike('name', 'John').orWhereLike('name', 'Jane');
 	 * sql.orWhereLike('u.username', 'admin'); // 使用表别名
 	 */
-	orWhereLike(column, value, wildcard = true) {
+	orWhereLike(column, value) {
 		this.#validateIdentifier(column);
 
-		const searchValue = wildcard ? `%${value}%` : value;
+		const searchValue = `%${value}%`;
 
 		this.#query.where.push({
 			column: this.#escapeIdentifier(column),
