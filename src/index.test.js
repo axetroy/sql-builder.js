@@ -197,6 +197,30 @@ describe("SQLBuilder", () => {
 				sqlBuilder.select("*").from("users").where("age", "UNION SELECT * FROM passwords", 18).build();
 			}, /Unsupported or dangerous operator/);
 		});
+
+		it("应该支持 IS NULL（where 三参数形式）", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").where("deleted_at", "IS", null).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `deleted_at` IS NULL");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该支持 IS NOT NULL（where 三参数形式）", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").where("email", "IS NOT", null).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `email` IS NOT NULL");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("IS / IS NOT 操作符与非 null 值结合时应抛出错误", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").where("status", "IS", "active").build();
+			}, /Operator "IS" requires the value to be null/);
+
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").where("status", "IS NOT", "active").build();
+			}, /Operator "IS NOT" requires the value to be null/);
+		});
 	});
 
 	describe("WHERE 分组（括号嵌套）", () => {
@@ -360,6 +384,30 @@ describe("SQLBuilder", () => {
 
 			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `status` = ? OR `status` = ?");
 			assert.deepStrictEqual(params, ["active", "pending"]);
+		});
+
+		it("应该支持 IS NULL（orWhere 三参数形式）", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").where("status", "active").orWhere("deleted_at", "IS", null).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `status` = ? OR `deleted_at` IS NULL");
+			assert.deepStrictEqual(params, ["active"]);
+		});
+
+		it("应该支持 IS NOT NULL（orWhere 三参数形式）", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").where("status", "active").orWhere("email", "IS NOT", null).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `status` = ? OR `email` IS NOT NULL");
+			assert.deepStrictEqual(params, ["active"]);
+		});
+
+		it("IS / IS NOT 操作符与非 null 值结合时应抛出错误（orWhere）", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").orWhere("status", "IS", "active").build();
+			}, /Operator "IS" requires the value to be null/);
+
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").orWhere("status", "IS NOT", "active").build();
+			}, /Operator "IS NOT" requires the value to be null/);
 		});
 	});
 
