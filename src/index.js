@@ -2014,7 +2014,9 @@ class SQLBuilder {
 			this.#query.joins.forEach((join) => {
 				if (join.conditions) {
 					const onClause = join.conditions
-						.map((c, i) => `${i === 0 ? "" : c.connector + " "}${c.first} ${c.operator} ${c.second}`)
+						.map((c, i) =>
+							i === 0 ? `${c.first} ${c.operator} ${c.second}` : `${c.connector} ${c.first} ${c.operator} ${c.second}`,
+						)
 						.join(" ");
 					parts.push(`${join.type} JOIN ${join.table} ON ${onClause}`);
 				} else if (join.condition) {
