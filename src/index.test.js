@@ -853,6 +853,42 @@ describe("SQLBuilder", () => {
 		});
 	});
 
+	describe("fullJoin() 方法", () => {
+		it("应该添加 FULL OUTER JOIN", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").fullJoin("profiles", "users.id", "=", "profiles.user_id").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` FULL OUTER JOIN `profiles` ON `users`.`id` = `profiles`.`user_id`");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该支持表别名", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users u").fullJoin("profiles p", "u.id", "=", "p.user_id").build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` `u` FULL OUTER JOIN `profiles` `p` ON `u`.`id` = `p`.`user_id`");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该拒绝危险的 FULL OUTER JOIN 条件", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").fullJoin("profiles;", "users.id", "=", "profiles.user_id").build();
+			}, /Potential SQL injection detected in identifier/);
+		});
+
+		it("应该支持回调形式的复杂 ON 条件", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.fullJoin("posts", (on) => on.on("users.id", "=", "posts.user_id").on("users.status", "=", "posts.status"))
+				.build();
+
+			assert.strictEqual(
+				sql,
+				"SELECT * FROM `users` FULL OUTER JOIN `posts` ON `users`.`id` = `posts`.`user_id` AND `users`.`status` = `posts`.`status`",
+			);
+			assert.deepStrictEqual(params, []);
+		});
+	});
+
 	describe("crossJoin() 方法", () => {
 		it("应该添加 CROSS JOIN（无 ON 条件）", () => {
 			const { sql, params } = sqlBuilder.select("*").from("users").crossJoin("products").build();

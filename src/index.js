@@ -1346,6 +1346,59 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 添加 FULL OUTER JOIN 连接
+	 * @param {string} table - 要连接的表名，可以包含别名
+	 * @param {string|Function} first - 第一个连接条件列，或接收 JoinClause 的回调函数（用于复杂 ON 条件）
+	 * @param {string} [operator] - 操作符（当 first 为字符串时必填）
+	 * @param {string} [second] - 第二个连接条件列（当 first 为字符串时必填）
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.fullJoin('profiles', 'users.id', '=', 'profiles.user_id');
+	 * sql.fullJoin('profiles p', 'users.id', '=', 'p.user_id'); // 使用表别名
+	 * // 复杂 ON 条件（回调形式）
+	 * sql.fullJoin('posts', (on) => on.on('users.id', '=', 'posts.user_id').on('users.status', '=', 'posts.status'));
+	 */
+	fullJoin(table, first, operator, second) {
+		const { table: tableName, alias } = this.#parseTableAndAlias(table.replace(/ AS /i, " "));
+
+		this.#validateIdentifier(tableName);
+		if (alias) {
+			this.#validateIdentifier(alias);
+		}
+
+		const escapedTable = this.#escapeIdentifier(tableName);
+		const joinedTable = alias ? `${escapedTable} ${this.#escapeIdentifier(alias)}` : escapedTable;
+
+		if (typeof first === "function") {
+			const joinClause = new JoinClause(
+				(id) => this.#validateIdentifier(id),
+				(op) => this.#validateOperator(op),
+				(id) => this.#escapeIdentifier(id),
+			);
+			first(joinClause);
+			this.#query.joins.push({
+				type: "FULL OUTER",
+				table: joinedTable,
+				conditions: joinClause.getConditions(),
+			});
+		} else {
+			this.#validateIdentifier(first);
+			this.#validateIdentifier(second);
+			this.#validateOperator(operator);
+			this.#query.joins.push({
+				type: "FULL OUTER",
+				table: joinedTable,
+				condition: {
+					first: this.#escapeIdentifier(first),
+					operator,
+					second: this.#escapeIdentifier(second),
+				},
+			});
+		}
+		return this;
+	}
+
+	/**
 	 * 添加 CROSS JOIN 连接
 	 * @param {string} table - 要连接的表名，可以包含别名
 	 * @returns {SQLBuilder}

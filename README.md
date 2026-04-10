@@ -881,6 +881,20 @@ Adds a RIGHT JOIN clause with complex, multi-condition `ON` clause.
 - **Parameters:** Same as callback `join()`
 - **Returns:** `SQLBuilder` (chainable)
 
+#### `fullJoin(table, first, operator, second)`
+
+Adds a FULL OUTER JOIN clause.
+
+- **Parameters:** Same as simple `join()`
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `fullJoin(table, callback)`
+
+Adds a FULL OUTER JOIN clause with complex, multi-condition `ON` clause.
+
+- **Parameters:** Same as callback `join()`
+- **Returns:** `SQLBuilder` (chainable)
+
 #### `crossJoin(table)`
 
 Adds a CROSS JOIN clause (no ON condition).
@@ -891,7 +905,7 @@ Adds a CROSS JOIN clause (no ON condition).
 
 ### JoinClause Methods
 
-The `JoinClause` object is passed to the callback in `join()`, `leftJoin()`, and `rightJoin()`. All identifiers and operators are validated automatically.
+The `JoinClause` object is passed to the callback in `join()`, `leftJoin()`, `rightJoin()`, and `fullJoin()`. All identifiers and operators are validated automatically.
 
 #### `on(first, operator, second)`
 
