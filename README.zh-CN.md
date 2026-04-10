@@ -881,6 +881,20 @@ sqlBuilder.update("users").set({ age: raw("age + 1") }).where("id", 1).build();
 - **参数：** 与回调形式 `join()` 相同
 - **返回值：** `SQLBuilder`（可链式调用）
 
+#### `fullJoin(table, first, operator, second)`
+
+添加 FULL OUTER JOIN 子句。
+
+- **参数：** 与简单形式 `join()` 相同
+- **返回值：** `SQLBuilder`（可链式调用）
+
+#### `fullJoin(table, callback)`
+
+添加具有复杂多条件 `ON` 子句的 FULL OUTER JOIN。
+
+- **参数：** 与回调形式 `join()` 相同
+- **返回值：** `SQLBuilder`（可链式调用）
+
 #### `crossJoin(table)`
 
 添加 CROSS JOIN 子句（无 ON 条件）。
@@ -891,7 +905,7 @@ sqlBuilder.update("users").set({ age: raw("age + 1") }).where("id", 1).build();
 
 ### JoinClause 方法
 
-`JoinClause` 对象通过 `join()`、`leftJoin()`、`rightJoin()` 的回调形式传入，所有标识符与运算符均会自动验证。
+`JoinClause` 对象通过 `join()`、`leftJoin()`、`rightJoin()`、`fullJoin()` 的回调形式传入，所有标识符与运算符均会自动验证。
 
 #### `on(first, operator, second)`
 

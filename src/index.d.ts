@@ -582,6 +582,32 @@ declare class SQLBuilder {
 	rightJoin(table: string, first: string, operator: string, second: string): this;
 
 	/**
+	 * 添加 FULL OUTER JOIN 连接
+	 * @param table - 要连接的表名
+	 * @param callback - 接收 JoinClause 的回调函数，用于构建复杂 ON 条件
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.fullJoin('posts', (on) => on.on('users.id', '=', 'posts.user_id').on('users.status', '=', 'posts.status'));
+	 * ```
+	 */
+	fullJoin(table: string, callback: (on: JoinClause) => void): this;
+
+	/**
+	 * 添加 FULL OUTER JOIN 连接
+	 * @param table - 要连接的表名
+	 * @param first - 第一个连接条件列
+	 * @param operator - 操作符
+	 * @param second - 第二个连接条件列
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.fullJoin('profiles', 'users.id', '=', 'profiles.user_id');
+	 * ```
+	 */
+	fullJoin(table: string, first: string, operator: string, second: string): this;
+
+	/**
 	 * 添加 CROSS JOIN 连接
 	 * @param table - 要连接的表名
 	 * @returns SQLBuilder 实例
