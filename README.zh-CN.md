@@ -1107,6 +1107,20 @@ sqlBuilder.update("users").set({ age: raw("age + 1") }).where("id", 1).build();
   - `number`（number）：跳过的行数（必须为非负整数）
 - **返回值：** `SQLBuilder`（可链式调用）
 
+#### `take(number)`
+
+限制返回 N 条记录（`limit(number)` 的语义别名）。
+
+- **参数：**
+  - `number`（number）：最大行数（必须为正整数）
+- **返回值：** `SQLBuilder`（可链式调用）
+
+#### `first()`
+
+限制查询只返回第一条记录，等同于 `limit(1)`。
+
+- **返回值：** `SQLBuilder`（可链式调用）
+
 #### `withTotal([fieldNameOrEnabled])`
 
 使用窗口函数添加总记录数列，用于分页。

@@ -1134,6 +1134,55 @@ describe("SQLBuilder", () => {
 		});
 	});
 
+	describe("take() 方法", () => {
+		it("应该等同于 limit(N)", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").take(5).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` LIMIT 5");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该可以与 offset 组合使用", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").take(10).offset(20).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` LIMIT 10 OFFSET 20");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该验证 take 参数", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").take(-1).build();
+			}, /Limit must be a positive integer/);
+
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").take(5.5).build();
+			}, /Limit must be a positive integer/);
+		});
+	});
+
+	describe("first() 方法", () => {
+		it("应该等同于 limit(1)", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").first().build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` LIMIT 1");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该可以与 where 条件组合使用", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").where("id", 42).first().build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` WHERE `id` = ? LIMIT 1");
+			assert.deepStrictEqual(params, [42]);
+		});
+
+		it("应该可以与 offset 组合使用", () => {
+			const { sql, params } = sqlBuilder.select("*").from("users").first().offset(5).build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` LIMIT 1 OFFSET 5");
+			assert.deepStrictEqual(params, []);
+		});
+	});
+
 	describe("insert() 方法", () => {
 		it("应该构建 INSERT 查询", () => {
 			const { sql, params } = sqlBuilder

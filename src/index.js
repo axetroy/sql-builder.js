@@ -1620,6 +1620,28 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 限制查询返回 N 条记录（limit 的语义别名）
+	 * @param {number} number - 限制数量
+	 * @returns {SQLBuilder}
+	 * @throws {Error} 当 number 不是正整数时抛出错误
+	 * @example
+	 * sql.take(5); // 限制返回5条记录
+	 */
+	take(number) {
+		return this.limit(number);
+	}
+
+	/**
+	 * 限制查询只返回第一条记录（等同于 limit(1)）
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.first(); // 只返回第一条记录
+	 */
+	first() {
+		return this.limit(1);
+	}
+
+	/**
 	 * 设置查询偏移量
 	 * @param {number} number - 偏移量
 	 * @returns {SQLBuilder}
