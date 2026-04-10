@@ -406,6 +406,40 @@ const { sql, params } = sqlBuilder
 // WHERE `u`.`status` = ?
 ```
 
+#### Complex ON Conditions
+
+Use a callback to build multi-condition `ON` clauses with `AND` / `OR`:
+
+```js
+// Multiple AND conditions
+const { sql, params } = sqlBuilder
+  .select(["u.id", "u.name", "p.title"])
+  .from("users u")
+  .join("posts p", (on) =>
+    on
+      .on("u.id", "=", "p.user_id")
+      .on("u.status", "=", "p.status")
+  )
+  .build();
+// SELECT `u`.`id`, `u`.`name`, `p`.`title`
+// FROM `users` `u`
+// INNER JOIN `posts` `p` ON `u`.`id` = `p`.`user_id` AND `u`.`status` = `p`.`status`
+
+// AND + OR conditions
+const { sql: sql2 } = sqlBuilder
+  .select("*")
+  .from("users u")
+  .leftJoin("posts p", (on) =>
+    on
+      .on("u.id", "=", "p.user_id")
+      .orOn("u.uuid", "=", "p.user_uuid")
+  )
+  .build();
+// SELECT *
+// FROM `users` `u`
+// LEFT JOIN `posts` `p` ON `u`.`id` = `p`.`user_id` OR `u`.`uuid` = `p`.`user_uuid`
+```
+
 #### Multiple JOINs
 
 ```js
@@ -801,7 +835,7 @@ Specifies the table for the query.
 
 #### `join(table, first, operator, second)`
 
-Adds an INNER JOIN clause.
+Adds an INNER JOIN clause (simple form).
 
 - **Parameters:**
   - `table` (string): Table to join, optionally with alias
@@ -810,12 +844,71 @@ Adds an INNER JOIN clause.
   - `second` (string): Second column in join condition
 - **Returns:** `SQLBuilder` (chainable)
 
+#### `join(table, callback)`
+
+Adds an INNER JOIN clause with complex, multi-condition `ON` clause.
+
+- **Parameters:**
+  - `table` (string): Table to join, optionally with alias
+  - `callback` (function): Receives a `JoinClause` instance; call `.on()` / `.orOn()` to add conditions
+- **Returns:** `SQLBuilder` (chainable)
+
 #### `leftJoin(table, first, operator, second)`
 
 Adds a LEFT JOIN clause.
 
-- **Parameters:** Same as `join()`
+- **Parameters:** Same as simple `join()`
 - **Returns:** `SQLBuilder` (chainable)
+
+#### `leftJoin(table, callback)`
+
+Adds a LEFT JOIN clause with complex, multi-condition `ON` clause.
+
+- **Parameters:** Same as callback `join()`
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `rightJoin(table, first, operator, second)`
+
+Adds a RIGHT JOIN clause.
+
+- **Parameters:** Same as simple `join()`
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `rightJoin(table, callback)`
+
+Adds a RIGHT JOIN clause with complex, multi-condition `ON` clause.
+
+- **Parameters:** Same as callback `join()`
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `crossJoin(table)`
+
+Adds a CROSS JOIN clause (no ON condition).
+
+- **Parameters:**
+  - `table` (string): Table to join, optionally with alias
+- **Returns:** `SQLBuilder` (chainable)
+
+### JoinClause Methods
+
+The `JoinClause` object is passed to the callback in `join()`, `leftJoin()`, and `rightJoin()`. All identifiers and operators are validated automatically.
+
+#### `on(first, operator, second)`
+
+Appends an AND ON condition.
+
+- **Parameters:**
+  - `first` (string): First column (e.g. `"u.id"`)
+  - `operator` (string): Comparison operator (e.g. `"="`)
+  - `second` (string): Second column (e.g. `"p.user_id"`)
+- **Returns:** `JoinClause` (chainable)
+
+#### `orOn(first, operator, second)`
+
+Appends an OR ON condition.
+
+- **Parameters:** Same as `on()`
+- **Returns:** `JoinClause` (chainable)
 
 ### WHERE Condition Methods
 

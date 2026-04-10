@@ -60,6 +60,43 @@ declare class RawExpression {
 declare function raw(expression: string): RawExpression;
 
 /**
+ * JOIN ON 条件构建器，用于构建复杂的 ON 条件（多个 AND/OR 子条件）
+ * @example
+ * ```typescript
+ * sql.join('posts', (on) => {
+ *   on.on('users.id', '=', 'posts.user_id').on('users.status', '=', 'posts.status');
+ * });
+ * ```
+ */
+declare class JoinClause {
+	/**
+	 * 添加一个 AND ON 条件
+	 * @param first - 第一个连接条件列
+	 * @param operator - 操作符
+	 * @param second - 第二个连接条件列
+	 * @returns JoinClause 实例（支持链式调用）
+	 * @example
+	 * ```typescript
+	 * on.on('users.id', '=', 'posts.user_id')
+	 * ```
+	 */
+	on(first: string, operator: string, second: string): this;
+
+	/**
+	 * 添加一个 OR ON 条件
+	 * @param first - 第一个连接条件列
+	 * @param operator - 操作符
+	 * @param second - 第二个连接条件列
+	 * @returns JoinClause 实例（支持链式调用）
+	 * @example
+	 * ```typescript
+	 * on.on('users.id', '=', 'posts.user_id').orOn('users.uuid', '=', 'posts.user_uuid')
+	 * ```
+	 */
+	orOn(first: string, operator: string, second: string): this;
+}
+
+/**
  * 安全的 SQL 查询构建器
  * 提供全面的 SQL 注入防护，使用参数化查询和标识符验证
  * @example
@@ -469,6 +506,18 @@ declare class SQLBuilder {
 	/**
 	 * 添加 INNER JOIN 连接
 	 * @param table - 要连接的表名
+	 * @param callback - 接收 JoinClause 的回调函数，用于构建复杂 ON 条件
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.join('posts', (on) => on.on('users.id', '=', 'posts.user_id').on('users.status', '=', 'posts.status'));
+	 * ```
+	 */
+	join(table: string, callback: (on: JoinClause) => void): this;
+
+	/**
+	 * 添加 INNER JOIN 连接
+	 * @param table - 要连接的表名
 	 * @param first - 第一个连接条件列
 	 * @param operator - 操作符
 	 * @param second - 第二个连接条件列
@@ -483,6 +532,18 @@ declare class SQLBuilder {
 	/**
 	 * 添加 LEFT JOIN 连接
 	 * @param table - 要连接的表名
+	 * @param callback - 接收 JoinClause 的回调函数，用于构建复杂 ON 条件
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.leftJoin('posts', (on) => on.on('users.id', '=', 'posts.user_id').on('users.status', '=', 'posts.status'));
+	 * ```
+	 */
+	leftJoin(table: string, callback: (on: JoinClause) => void): this;
+
+	/**
+	 * 添加 LEFT JOIN 连接
+	 * @param table - 要连接的表名
 	 * @param first - 第一个连接条件列
 	 * @param operator - 操作符
 	 * @param second - 第二个连接条件列
@@ -493,6 +554,18 @@ declare class SQLBuilder {
 	 * ```
 	 */
 	leftJoin(table: string, first: string, operator: string, second: string): this;
+
+	/**
+	 * 添加 RIGHT JOIN 连接
+	 * @param table - 要连接的表名
+	 * @param callback - 接收 JoinClause 的回调函数，用于构建复杂 ON 条件
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.rightJoin('posts', (on) => on.on('users.id', '=', 'posts.user_id').on('users.status', '=', 'posts.status'));
+	 * ```
+	 */
+	rightJoin(table: string, callback: (on: JoinClause) => void): this;
 
 	/**
 	 * 添加 RIGHT JOIN 连接
@@ -900,5 +973,5 @@ declare class Transaction {
 	build(): BuildResult;
 }
 
-export { SQLBuilder, Transaction, RawExpression, BuildResult, raw };
+export { SQLBuilder, Transaction, RawExpression, BuildResult, JoinClause, raw };
 export default SQLBuilder;

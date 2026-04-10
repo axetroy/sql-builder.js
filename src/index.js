@@ -95,6 +95,100 @@ function raw(expression) {
 }
 
 /**
+ * JOIN ON 条件构建器，用于构建复杂的 ON 条件（多个 AND/OR 子条件）
+ * @class JoinClause
+ * @example
+ * sql.join('posts', (on) => {
+ *   on.on('users.id', '=', 'posts.user_id').on('users.status', '=', 'posts.status');
+ * });
+ */
+class JoinClause {
+	/**
+	 * @private
+	 * @type {Array<{first: string, operator: string, second: string, connector: string}>}
+	 */
+	#conditions = [];
+
+	/**
+	 * @private
+	 */
+	#validateIdentifier;
+
+	/**
+	 * @private
+	 */
+	#validateOperator;
+
+	/**
+	 * @private
+	 */
+	#escapeIdentifier;
+
+	/**
+	 * @param {Function} validateIdentifier
+	 * @param {Function} validateOperator
+	 * @param {Function} escapeIdentifier
+	 */
+	constructor(validateIdentifier, validateOperator, escapeIdentifier) {
+		this.#validateIdentifier = validateIdentifier;
+		this.#validateOperator = validateOperator;
+		this.#escapeIdentifier = escapeIdentifier;
+	}
+
+	/**
+	 * 添加一个 AND ON 条件
+	 * @param {string} first - 第一个连接条件列
+	 * @param {string} operator - 操作符
+	 * @param {string} second - 第二个连接条件列
+	 * @returns {JoinClause}
+	 * @example
+	 * on.on('users.id', '=', 'posts.user_id')
+	 */
+	on(first, operator, second) {
+		this.#validateIdentifier(first);
+		this.#validateIdentifier(second);
+		this.#validateOperator(operator);
+		this.#conditions.push({
+			first: this.#escapeIdentifier(first),
+			operator,
+			second: this.#escapeIdentifier(second),
+			connector: "AND",
+		});
+		return this;
+	}
+
+	/**
+	 * 添加一个 OR ON 条件
+	 * @param {string} first - 第一个连接条件列
+	 * @param {string} operator - 操作符
+	 * @param {string} second - 第二个连接条件列
+	 * @returns {JoinClause}
+	 * @example
+	 * on.on('users.id', '=', 'posts.user_id').orOn('users.uuid', '=', 'posts.user_uuid')
+	 */
+	orOn(first, operator, second) {
+		this.#validateIdentifier(first);
+		this.#validateIdentifier(second);
+		this.#validateOperator(operator);
+		this.#conditions.push({
+			first: this.#escapeIdentifier(first),
+			operator,
+			second: this.#escapeIdentifier(second),
+			connector: "OR",
+		});
+		return this;
+	}
+
+	/**
+	 * 返回已收集的条件数组
+	 * @returns {Array<{first: string, operator: string, second: string, connector: string}>}
+	 */
+	getConditions() {
+		return this.#conditions;
+	}
+}
+
+/**
  * 安全的 SQL 查询构建器
  * 提供全面的 SQL 注入防护，使用参数化查询和标识符验证
  * @class SQLBuilder
@@ -1094,14 +1188,16 @@ class SQLBuilder {
 	/**
 	 * 添加 INNER JOIN 连接
 	 * @param {string} table - 要连接的表名，可以包含别名
-	 * @param {string} first - 第一个连接条件列
-	 * @param {string} operator - 操作符
-	 * @param {string} second - 第二个连接条件列
+	 * @param {string|Function} first - 第一个连接条件列，或接收 JoinClause 的回调函数（用于复杂 ON 条件）
+	 * @param {string} [operator] - 操作符（当 first 为字符串时必填）
+	 * @param {string} [second] - 第二个连接条件列（当 first 为字符串时必填）
 	 * @returns {SQLBuilder}
 	 * @example
 	 * sql.join('posts', 'users.id', '=', 'posts.user_id');
 	 * sql.join('profiles p', 'users.id', '=', 'p.user_id'); // 使用表别名
 	 * sql.join('database.posts p', 'u.id', '=', 'p.user_id'); // 使用数据库限定表名和别名
+	 * // 复杂 ON 条件（回调形式）
+	 * sql.join('posts', (on) => on.on('users.id', '=', 'posts.user_id').on('users.status', '=', 'posts.status'));
 	 */
 	join(table, first, operator, second) {
 		const { table: tableName, alias } = this.#parseTableAndAlias(table.replace(/ AS /i, " "));
@@ -1110,35 +1206,51 @@ class SQLBuilder {
 		if (alias) {
 			this.#validateIdentifier(alias);
 		}
-		this.#validateIdentifier(first);
-		this.#validateIdentifier(second);
-		this.#validateOperator(operator);
 
 		const escapedTable = this.#escapeIdentifier(tableName);
 		const joinedTable = alias ? `${escapedTable} ${this.#escapeIdentifier(alias)}` : escapedTable;
 
-		this.#query.joins.push({
-			type: "INNER",
-			table: joinedTable,
-			condition: {
-				first: this.#escapeIdentifier(first),
-				operator,
-				second: this.#escapeIdentifier(second),
-			},
-		});
+		if (typeof first === "function") {
+			const joinClause = new JoinClause(
+				(id) => this.#validateIdentifier(id),
+				(op) => this.#validateOperator(op),
+				(id) => this.#escapeIdentifier(id),
+			);
+			first(joinClause);
+			this.#query.joins.push({
+				type: "INNER",
+				table: joinedTable,
+				conditions: joinClause.getConditions(),
+			});
+		} else {
+			this.#validateIdentifier(first);
+			this.#validateIdentifier(second);
+			this.#validateOperator(operator);
+			this.#query.joins.push({
+				type: "INNER",
+				table: joinedTable,
+				condition: {
+					first: this.#escapeIdentifier(first),
+					operator,
+					second: this.#escapeIdentifier(second),
+				},
+			});
+		}
 		return this;
 	}
 
 	/**
 	 * 添加 LEFT JOIN 连接
 	 * @param {string} table - 要连接的表名，可以包含别名
-	 * @param {string} first - 第一个连接条件列
-	 * @param {string} operator - 操作符
-	 * @param {string} second - 第二个连接条件列
+	 * @param {string|Function} first - 第一个连接条件列，或接收 JoinClause 的回调函数（用于复杂 ON 条件）
+	 * @param {string} [operator] - 操作符（当 first 为字符串时必填）
+	 * @param {string} [second] - 第二个连接条件列（当 first 为字符串时必填）
 	 * @returns {SQLBuilder}
 	 * @example
 	 * sql.leftJoin('profiles', 'users.id', '=', 'profiles.user_id');
 	 * sql.leftJoin('profiles p', 'users.id', '=', 'p.user_id'); // 使用表别名
+	 * // 复杂 ON 条件（回调形式）
+	 * sql.leftJoin('posts', (on) => on.on('users.id', '=', 'posts.user_id').on('users.status', '=', 'posts.status'));
 	 */
 	leftJoin(table, first, operator, second) {
 		const { table: tableName, alias } = this.#parseTableAndAlias(table.replace(/ AS /i, " "));
@@ -1147,35 +1259,51 @@ class SQLBuilder {
 		if (alias) {
 			this.#validateIdentifier(alias);
 		}
-		this.#validateIdentifier(first);
-		this.#validateIdentifier(second);
-		this.#validateOperator(operator);
 
 		const escapedTable = this.#escapeIdentifier(tableName);
 		const joinedTable = alias ? `${escapedTable} ${this.#escapeIdentifier(alias)}` : escapedTable;
 
-		this.#query.joins.push({
-			type: "LEFT",
-			table: joinedTable,
-			condition: {
-				first: this.#escapeIdentifier(first),
-				operator,
-				second: this.#escapeIdentifier(second),
-			},
-		});
+		if (typeof first === "function") {
+			const joinClause = new JoinClause(
+				(id) => this.#validateIdentifier(id),
+				(op) => this.#validateOperator(op),
+				(id) => this.#escapeIdentifier(id),
+			);
+			first(joinClause);
+			this.#query.joins.push({
+				type: "LEFT",
+				table: joinedTable,
+				conditions: joinClause.getConditions(),
+			});
+		} else {
+			this.#validateIdentifier(first);
+			this.#validateIdentifier(second);
+			this.#validateOperator(operator);
+			this.#query.joins.push({
+				type: "LEFT",
+				table: joinedTable,
+				condition: {
+					first: this.#escapeIdentifier(first),
+					operator,
+					second: this.#escapeIdentifier(second),
+				},
+			});
+		}
 		return this;
 	}
 
 	/**
 	 * 添加 RIGHT JOIN 连接
 	 * @param {string} table - 要连接的表名，可以包含别名
-	 * @param {string} first - 第一个连接条件列
-	 * @param {string} operator - 操作符
-	 * @param {string} second - 第二个连接条件列
+	 * @param {string|Function} first - 第一个连接条件列，或接收 JoinClause 的回调函数（用于复杂 ON 条件）
+	 * @param {string} [operator] - 操作符（当 first 为字符串时必填）
+	 * @param {string} [second] - 第二个连接条件列（当 first 为字符串时必填）
 	 * @returns {SQLBuilder}
 	 * @example
 	 * sql.rightJoin('profiles', 'users.id', '=', 'profiles.user_id');
 	 * sql.rightJoin('profiles p', 'users.id', '=', 'p.user_id'); // 使用表别名
+	 * // 复杂 ON 条件（回调形式）
+	 * sql.rightJoin('posts', (on) => on.on('users.id', '=', 'posts.user_id').on('users.status', '=', 'posts.status'));
 	 */
 	rightJoin(table, first, operator, second) {
 		const { table: tableName, alias } = this.#parseTableAndAlias(table.replace(/ AS /i, " "));
@@ -1184,22 +1312,36 @@ class SQLBuilder {
 		if (alias) {
 			this.#validateIdentifier(alias);
 		}
-		this.#validateIdentifier(first);
-		this.#validateIdentifier(second);
-		this.#validateOperator(operator);
 
 		const escapedTable = this.#escapeIdentifier(tableName);
 		const joinedTable = alias ? `${escapedTable} ${this.#escapeIdentifier(alias)}` : escapedTable;
 
-		this.#query.joins.push({
-			type: "RIGHT",
-			table: joinedTable,
-			condition: {
-				first: this.#escapeIdentifier(first),
-				operator,
-				second: this.#escapeIdentifier(second),
-			},
-		});
+		if (typeof first === "function") {
+			const joinClause = new JoinClause(
+				(id) => this.#validateIdentifier(id),
+				(op) => this.#validateOperator(op),
+				(id) => this.#escapeIdentifier(id),
+			);
+			first(joinClause);
+			this.#query.joins.push({
+				type: "RIGHT",
+				table: joinedTable,
+				conditions: joinClause.getConditions(),
+			});
+		} else {
+			this.#validateIdentifier(first);
+			this.#validateIdentifier(second);
+			this.#validateOperator(operator);
+			this.#query.joins.push({
+				type: "RIGHT",
+				table: joinedTable,
+				condition: {
+					first: this.#escapeIdentifier(first),
+					operator,
+					second: this.#escapeIdentifier(second),
+				},
+			});
+		}
 		return this;
 	}
 
@@ -1870,7 +2012,14 @@ class SQLBuilder {
 		// JOIN 部分
 		if (this.#query.joins.length > 0) {
 			this.#query.joins.forEach((join) => {
-				if (join.condition) {
+				if (join.conditions) {
+					const onClause = join.conditions
+						.map((c, i) =>
+							i === 0 ? `${c.first} ${c.operator} ${c.second}` : `${c.connector} ${c.first} ${c.operator} ${c.second}`,
+						)
+						.join(" ");
+					parts.push(`${join.type} JOIN ${join.table} ON ${onClause}`);
+				} else if (join.condition) {
 					parts.push(
 						`${join.type} JOIN ${join.table} ON ${join.condition.first} ${join.condition.operator} ${join.condition.second}`,
 					);

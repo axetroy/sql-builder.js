@@ -406,6 +406,40 @@ const { sql, params } = sqlBuilder
 // WHERE `u`.`status` = ?
 ```
 
+#### 复杂 ON 条件
+
+使用回调函数可以用 `AND` / `OR` 构建多条件 `ON` 子句：
+
+```js
+// 多个 AND 条件
+const { sql, params } = sqlBuilder
+  .select(["u.id", "u.name", "p.title"])
+  .from("users u")
+  .join("posts p", (on) =>
+    on
+      .on("u.id", "=", "p.user_id")
+      .on("u.status", "=", "p.status")
+  )
+  .build();
+// SELECT `u`.`id`, `u`.`name`, `p`.`title`
+// FROM `users` `u`
+// INNER JOIN `posts` `p` ON `u`.`id` = `p`.`user_id` AND `u`.`status` = `p`.`status`
+
+// AND 与 OR 混合条件
+const { sql: sql2 } = sqlBuilder
+  .select("*")
+  .from("users u")
+  .leftJoin("posts p", (on) =>
+    on
+      .on("u.id", "=", "p.user_id")
+      .orOn("u.uuid", "=", "p.user_uuid")
+  )
+  .build();
+// SELECT *
+// FROM `users` `u`
+// LEFT JOIN `posts` `p` ON `u`.`id` = `p`.`user_id` OR `u`.`uuid` = `p`.`user_uuid`
+```
+
 #### 多个 JOIN
 
 ```js
@@ -801,7 +835,7 @@ sqlBuilder.update("users").set({ age: raw("age + 1") }).where("id", 1).build();
 
 #### `join(table, first, operator, second)`
 
-添加 INNER JOIN 子句。
+添加 INNER JOIN 子句（简单形式）。
 
 - **参数：**
   - `table`（string）：要连接的表，可选地带别名
@@ -810,12 +844,71 @@ sqlBuilder.update("users").set({ age: raw("age + 1") }).where("id", 1).build();
   - `second`（string）：连接条件中的第二个列
 - **返回值：** `SQLBuilder`（可链式调用）
 
+#### `join(table, callback)`
+
+添加具有复杂多条件 `ON` 子句的 INNER JOIN。
+
+- **参数：**
+  - `table`（string）：要连接的表，可选地带别名
+  - `callback`（function）：接收 `JoinClause` 实例；调用 `.on()` / `.orOn()` 添加条件
+- **返回值：** `SQLBuilder`（可链式调用）
+
 #### `leftJoin(table, first, operator, second)`
 
 添加 LEFT JOIN 子句。
 
-- **参数：** 与 `join()` 相同
+- **参数：** 与简单形式 `join()` 相同
 - **返回值：** `SQLBuilder`（可链式调用）
+
+#### `leftJoin(table, callback)`
+
+添加具有复杂多条件 `ON` 子句的 LEFT JOIN。
+
+- **参数：** 与回调形式 `join()` 相同
+- **返回值：** `SQLBuilder`（可链式调用）
+
+#### `rightJoin(table, first, operator, second)`
+
+添加 RIGHT JOIN 子句。
+
+- **参数：** 与简单形式 `join()` 相同
+- **返回值：** `SQLBuilder`（可链式调用）
+
+#### `rightJoin(table, callback)`
+
+添加具有复杂多条件 `ON` 子句的 RIGHT JOIN。
+
+- **参数：** 与回调形式 `join()` 相同
+- **返回值：** `SQLBuilder`（可链式调用）
+
+#### `crossJoin(table)`
+
+添加 CROSS JOIN 子句（无 ON 条件）。
+
+- **参数：**
+  - `table`（string）：要连接的表，可选地带别名
+- **返回值：** `SQLBuilder`（可链式调用）
+
+### JoinClause 方法
+
+`JoinClause` 对象通过 `join()`、`leftJoin()`、`rightJoin()` 的回调形式传入，所有标识符与运算符均会自动验证。
+
+#### `on(first, operator, second)`
+
+追加一个 AND ON 条件。
+
+- **参数：**
+  - `first`（string）：第一个列（如 `"u.id"`）
+  - `operator`（string）：比较运算符（如 `"="`）
+  - `second`（string）：第二个列（如 `"p.user_id"`）
+- **返回值：** `JoinClause`（可链式调用）
+
+#### `orOn(first, operator, second)`
+
+追加一个 OR ON 条件。
+
+- **参数：** 与 `on()` 相同
+- **返回值：** `JoinClause`（可链式调用）
 
 ### WHERE 条件方法
 
