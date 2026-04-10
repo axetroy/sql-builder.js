@@ -501,6 +501,49 @@ const result = sqlBuilder
 // GROUP BY `category`, `status`
 ```
 
+#### HAVING
+
+```js
+// 单个 HAVING 条件
+const { sql, params } = sqlBuilder
+  .select(["category", "COUNT(*) AS total"])
+  .from("orders")
+  .groupBy("category")
+  .having("COUNT(*)", ">", 5)
+  .build();
+// SELECT `category`, COUNT(*) AS `total` FROM `orders` GROUP BY `category` HAVING COUNT(*) > ?
+
+// 多个 AND 条件
+const result = sqlBuilder
+  .select("*")
+  .from("orders")
+  .groupBy("status")
+  .having("COUNT(*)", ">", 1)
+  .having("SUM(amount)", ">=", 1000)
+  .build();
+// HAVING COUNT(*) > ? AND SUM(amount) >= ?
+
+// OR 条件
+const result2 = sqlBuilder
+  .select("*")
+  .from("orders")
+  .groupBy("status")
+  .having("COUNT(*)", ">", 10)
+  .orHaving("SUM(amount)", ">=", 5000)
+  .build();
+// HAVING COUNT(*) > ? OR SUM(amount) >= ?
+
+// 原始 HAVING
+const result3 = sqlBuilder
+  .select("*")
+  .from("orders")
+  .groupBy("category")
+  .havingRaw("COUNT(*) > 5")
+  .orHavingRaw("SUM(amount) > ?", [1000])
+  .build();
+// HAVING COUNT(*) > 5 OR SUM(amount) > ?
+```
+
 ### 分页
 
 #### LIMIT 和 OFFSET
@@ -1011,6 +1054,39 @@ sqlBuilder.update("users").set({ age: raw("age + 1") }).where("id", 1).build();
 
 - **参数：**
   - `columns`（string | string[]）：要分组的列名
+- **返回值：** `SQLBuilder`（可链式调用）
+
+#### `having(column, operator, value)`
+
+添加 HAVING 条件（AND 连接）。
+
+- **参数：**
+  - `column`（string）：列名或聚合表达式（例如 `'COUNT(*)'`）
+  - `operator`（string）：比较操作符
+  - `value`（any）：比较值
+- **返回值：** `SQLBuilder`（可链式调用）
+
+#### `orHaving(column, operator, value)`
+
+添加 OR HAVING 条件。
+
+- **参数：** 同 `having()`
+- **返回值：** `SQLBuilder`（可链式调用）
+
+#### `havingRaw(expression, [params])`
+
+添加原始 HAVING 条件（AND 连接）。
+
+- **参数：**
+  - `expression`（string）：原始 SQL 表达式
+  - `params`（array，可选）：占位符对应的参数数组
+- **返回值：** `SQLBuilder`（可链式调用）
+
+#### `orHavingRaw(expression, [params])`
+
+添加原始 OR HAVING 条件。
+
+- **参数：** 同 `havingRaw()`
 - **返回值：** `SQLBuilder`（可链式调用）
 
 ### 分页方法

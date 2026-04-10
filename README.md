@@ -501,6 +501,49 @@ const result = sqlBuilder
 // GROUP BY `category`, `status`
 ```
 
+#### HAVING
+
+```js
+// Single HAVING condition
+const { sql, params } = sqlBuilder
+  .select(["category", "COUNT(*) AS total"])
+  .from("orders")
+  .groupBy("category")
+  .having("COUNT(*)", ">", 5)
+  .build();
+// SELECT `category`, COUNT(*) AS `total` FROM `orders` GROUP BY `category` HAVING COUNT(*) > ?
+
+// Multiple AND conditions
+const result = sqlBuilder
+  .select("*")
+  .from("orders")
+  .groupBy("status")
+  .having("COUNT(*)", ">", 1)
+  .having("SUM(amount)", ">=", 1000)
+  .build();
+// HAVING COUNT(*) > ? AND SUM(amount) >= ?
+
+// OR conditions
+const result2 = sqlBuilder
+  .select("*")
+  .from("orders")
+  .groupBy("status")
+  .having("COUNT(*)", ">", 10)
+  .orHaving("SUM(amount)", ">=", 5000)
+  .build();
+// HAVING COUNT(*) > ? OR SUM(amount) >= ?
+
+// Raw HAVING
+const result3 = sqlBuilder
+  .select("*")
+  .from("orders")
+  .groupBy("category")
+  .havingRaw("COUNT(*) > 5")
+  .orHavingRaw("SUM(amount) > ?", [1000])
+  .build();
+// HAVING COUNT(*) > 5 OR SUM(amount) > ?
+```
+
 ### Pagination
 
 #### LIMIT and OFFSET
@@ -1011,6 +1054,39 @@ Adds a GROUP BY clause.
 
 - **Parameters:**
   - `columns` (string | string[]): Column name(s) to group by
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `having(column, operator, value)`
+
+Adds a HAVING condition with AND.
+
+- **Parameters:**
+  - `column` (string): Column name or aggregate expression (e.g. `'COUNT(*)'`)
+  - `operator` (string): Comparison operator
+  - `value` (any): Value to compare
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `orHaving(column, operator, value)`
+
+Adds a HAVING condition with OR.
+
+- **Parameters:** Same as `having()`
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `havingRaw(expression, [params])`
+
+Adds a raw HAVING condition with AND.
+
+- **Parameters:**
+  - `expression` (string): Raw SQL expression
+  - `params` (array, optional): Parameter values for placeholders
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `orHavingRaw(expression, [params])`
+
+Adds a raw HAVING condition with OR.
+
+- **Parameters:** Same as `havingRaw()`
 - **Returns:** `SQLBuilder` (chainable)
 
 ### Pagination Methods

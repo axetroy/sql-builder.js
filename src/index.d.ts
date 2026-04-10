@@ -672,6 +672,32 @@ declare class SQLBuilder {
 	havingRaw(expression: string, params?: any[]): this;
 
 	/**
+	 * 添加 OR HAVING 条件
+	 * @param column - 列名或聚合表达式（例如 'COUNT(*)'）
+	 * @param operator - 比较操作符
+	 * @param value - 比较值
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.groupBy('category').having('COUNT(*)', '>', 5).orHaving('SUM(amount)', '>=', 1000);
+	 * ```
+	 */
+	orHaving(column: string, operator: string, value: any): this;
+
+	/**
+	 * 添加原始 OR HAVING 条件（高级用户逃生通道）
+	 * 注意：表达式会直接嵌入 SQL，请勿将用户输入传入 expression 参数。
+	 * @param expression - 原始 SQL 条件表达式
+	 * @param params - 与表达式中占位符对应的参数数组
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.groupBy('category').havingRaw('COUNT(*) > 5').orHavingRaw('SUM(amount) > ?', [1000]);
+	 * ```
+	 */
+	orHavingRaw(expression: string, params?: any[]): this;
+
+	/**
 	 * 统计总数
 	 * @param fieldName - 统计出来之后的字段名称
 	 */

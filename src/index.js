@@ -1537,6 +1537,73 @@ class SQLBuilder {
 	}
 
 	/**
+	 * 添加 OR HAVING 条件
+	 * @param {string} column - 列名或聚合表达式（例如 'COUNT(*)'）
+	 * @param {string} operator - 比较操作符
+	 * @param {any} value - 比较值
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.groupBy('category').having('COUNT(*)', '>', 5).orHaving('SUM(amount)', '>=', 1000);
+	 */
+	orHaving(column, operator, value) {
+		if (typeof column !== "string" || column.length === 0) {
+			throw new Error("orHaving requires a non-empty string column");
+		}
+
+		this.#validateOperator(operator);
+
+		const upperOperator = operator.toUpperCase();
+
+		// IS / IS NOT 只能配合 null 使用
+		if ((upperOperator === "IS" || upperOperator === "IS NOT") && value !== null) {
+			throw new Error(`Operator "${operator}" requires the value to be null`);
+		}
+
+		this.#query.having.push({
+			type: "condition",
+			column,
+			operator,
+			value,
+			connector: "OR",
+		});
+
+		if (upperOperator !== "IS" && upperOperator !== "IS NOT") {
+			this.#params.push(value);
+		}
+
+		return this;
+	}
+
+	/**
+	 * 添加原始 OR HAVING 条件（高级用户逃生通道）
+	 * 注意：表达式会直接嵌入 SQL，请勿将用户输入传入 expression 参数。
+	 * @param {string} expression - 原始 SQL 条件表达式
+	 * @param {any[]} [params=[]] - 与表达式中占位符对应的参数数组
+	 * @returns {SQLBuilder}
+	 * @example
+	 * sql.groupBy('category').havingRaw('COUNT(*) > 5').orHavingRaw('SUM(amount) > ?', [1000]);
+	 */
+	orHavingRaw(expression, params = []) {
+		if (typeof expression !== "string" || expression.length === 0) {
+			throw new Error("orHavingRaw requires a non-empty string expression");
+		}
+
+		const placeholderCount = (expression.match(/\?/g) || []).length;
+		if (placeholderCount !== params.length) {
+			throw new Error(`orHavingRaw: expression has ${placeholderCount} placeholder(s) but ${params.length} param(s) were provided`);
+		}
+
+		this.#query.having.push({
+			type: "raw",
+			expression,
+			connector: "OR",
+		});
+		this.#params.push(...params);
+
+		return this;
+	}
+
+	/**
 	 * 设置查询限制数量
 	 * @param {number} number - 限制数量
 	 * @returns {SQLBuilder}
