@@ -1024,6 +1024,87 @@ describe("SQLBuilder", () => {
 		});
 	});
 
+	describe("orHaving() 方法", () => {
+		it("应该添加 OR HAVING 条件", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("orders")
+				.groupBy("status")
+				.having("COUNT(*)", ">", 1)
+				.orHaving("SUM(amount)", ">=", 1000)
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `orders` GROUP BY `status` HAVING COUNT(*) > ? OR SUM(amount) >= ?");
+			assert.deepStrictEqual(params, [1, 1000]);
+		});
+
+		it("应该支持多个 OR HAVING 条件", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("sales")
+				.groupBy("region")
+				.having("COUNT(*)", ">", 5)
+				.orHaving("AVG(price)", "<=", 100)
+				.orHaving("SUM(amount)", ">", 5000)
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `sales` GROUP BY `region` HAVING COUNT(*) > ? OR AVG(price) <= ? OR SUM(amount) > ?");
+			assert.deepStrictEqual(params, [5, 100, 5000]);
+		});
+
+		it("应该验证 column 必须是非空字符串", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").groupBy("category").orHaving("", ">", 5).build();
+			}, /orHaving requires a non-empty string column/);
+		});
+
+		it("应该验证 operator 必须是合法操作符", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").groupBy("category").orHaving("COUNT(*)", "INVALID", 5).build();
+			}, /Unsupported or dangerous operator/);
+		});
+	});
+
+	describe("orHavingRaw() 方法", () => {
+		it("应该添加原始 OR HAVING 条件", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("users")
+				.groupBy("category")
+				.havingRaw("COUNT(*) > 5")
+				.orHavingRaw("SUM(amount) > 1000")
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `users` GROUP BY `category` HAVING COUNT(*) > 5 OR SUM(amount) > 1000");
+			assert.deepStrictEqual(params, []);
+		});
+
+		it("应该支持带参数的原始 OR HAVING 条件", () => {
+			const { sql, params } = sqlBuilder
+				.select("*")
+				.from("orders")
+				.groupBy("status")
+				.having("COUNT(*)", ">", 1)
+				.orHavingRaw("SUM(amount) > ?", [1000])
+				.build();
+
+			assert.strictEqual(sql, "SELECT * FROM `orders` GROUP BY `status` HAVING COUNT(*) > ? OR SUM(amount) > ?");
+			assert.deepStrictEqual(params, [1, 1000]);
+		});
+
+		it("应该验证 expression 必须是非空字符串", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").groupBy("category").orHavingRaw("").build();
+			}, /orHavingRaw requires a non-empty string expression/);
+		});
+
+		it("应该验证占位符数量与参数数量匹配", () => {
+			assert.throws(() => {
+				sqlBuilder.select("*").from("users").groupBy("category").orHavingRaw("COUNT(*) > ?", []).build();
+			}, /orHavingRaw: expression has 1 placeholder\(s\) but 0 param\(s\) were provided/);
+		});
+	});
+
 	describe("limit() 和 offset() 方法", () => {
 		it("应该添加 LIMIT 和 OFFSET", () => {
 			const { sql, params } = sqlBuilder.select("*").from("users").limit(10).offset(20).build();
