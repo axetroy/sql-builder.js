@@ -716,6 +716,28 @@ declare class SQLBuilder {
 	limit(number: number): this;
 
 	/**
+	 * 限制查询返回 N 条记录（limit 的语义别名）
+	 * @param number - 限制数量
+	 * @returns SQLBuilder 实例
+	 * @throws 当 number 不是正整数时抛出错误
+	 * @example
+	 * ```typescript
+	 * sql.take(5); // 限制返回5条记录
+	 * ```
+	 */
+	take(number: number): this;
+
+	/**
+	 * 限制查询只返回第一条记录（等同于 limit(1)）
+	 * @returns SQLBuilder 实例
+	 * @example
+	 * ```typescript
+	 * sql.first(); // 只返回第一条记录
+	 * ```
+	 */
+	first(): this;
+
+	/**
 	 * 设置查询偏移量
 	 * @param number - 偏移量
 	 * @returns SQLBuilder 实例

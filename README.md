@@ -1107,6 +1107,20 @@ Sets the number of rows to skip.
   - `number` (number): Number of rows to skip (must be non-negative integer)
 - **Returns:** `SQLBuilder` (chainable)
 
+#### `take(number)`
+
+Limits the number of rows returned. Semantic alias for `limit(number)`.
+
+- **Parameters:**
+  - `number` (number): Maximum number of rows (must be positive integer)
+- **Returns:** `SQLBuilder` (chainable)
+
+#### `first()`
+
+Limits the query to return only the first row. Shorthand for `limit(1)`.
+
+- **Returns:** `SQLBuilder` (chainable)
+
 #### `withTotal([fieldNameOrEnabled])`
 
 Adds a total count column using window functions for pagination.
